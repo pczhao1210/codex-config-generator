@@ -43,11 +43,14 @@ const localProviderDefaults: Record<Exclude<LocalProviderKind, 'custom'>, { name
   },
 }
 
+const githubRepoUrl = 'https://github.com/pczhao1210/codex-config-generator'
+
 const messages = {
   zh: {
     languageLabel: '语言',
     languageZh: '中文',
     languageEn: 'English',
+    githubSourceLabel: 'GitHub Source',
     memoryPill: '状态保存：仅保存在当前页面内存中，刷新后全部丢失',
     heroText: '一个完全静态的多步骤 WebUI，用来生成 Linux、macOS、Windows 下的 Codex 环境配置脚本、config.toml 和安装说明。',
     browserOs: '浏览器识别 OS',
@@ -124,6 +127,7 @@ const messages = {
     languageLabel: 'Language',
     languageZh: '中文',
     languageEn: 'English',
+    githubSourceLabel: 'GitHub Source',
     memoryPill: 'State is stored in page memory only and is lost after refresh',
     heroText: 'A fully static multi-step WebUI that generates Codex setup scripts, config.toml, and install guidance for Linux, macOS, and Windows.',
     browserOs: 'Browser OS',
@@ -853,22 +857,35 @@ function App() {
       <section className="hero-block">
         <div className="hero-copy stack gap-md">
           <div className="hero-top">
-            <p className="pill">{t.memoryPill}</p>
-            <div className="lang-switcher" aria-label={t.languageLabel}>
-              <button
-                className={`lang-switcher__button ${locale === 'zh' ? 'is-active' : ''}`}
-                onClick={() => setLocale('zh')}
-                type="button"
-              >
-                {t.languageZh}
-              </button>
-              <button
-                className={`lang-switcher__button ${locale === 'en' ? 'is-active' : ''}`}
-                onClick={() => setLocale('en')}
-                type="button"
-              >
-                {t.languageEn}
-              </button>
+            <div className="hero-badges">
+              <p className="pill">{t.memoryPill}</p>
+              <a className="github-link" href={githubRepoUrl} rel="noreferrer" target="_blank">
+                <span className="github-link__icon" aria-hidden="true">
+                  <svg viewBox="0 0 19 19">
+                    <path d="M9.356 1.85C5.05 1.85 1.57 5.356 1.57 9.694a7.84 7.84 0 0 0 5.324 7.44c.387.079.528-.168.528-.376 0-.182-.013-.805-.013-1.454-2.165.467-2.616-.935-2.616-.935-.349-.91-.864-1.143-.864-1.143-.71-.48.051-.48.051-.48.787.051 1.2.805 1.2.805.695 1.194 1.817.857 2.268.649.064-.507.27-.857.49-1.052-1.728-.182-3.545-.857-3.545-3.87 0-.857.31-1.558.8-2.104-.078-.195-.349-1 .077-2.078 0 0 .657-.208 2.14.805a7.5 7.5 0 0 1 1.946-.26c.657 0 1.328.092 1.946.26 1.483-1.013 2.14-.805 2.14-.805.426 1.078.155 1.883.078 2.078.502.546.799 1.247.799 2.104 0 3.013-1.818 3.675-3.558 3.87.284.247.528.714.528 1.454 0 1.052-.012 1.896-.012 2.156 0 .208.142.455.528.377a7.84 7.84 0 0 0 5.324-7.441c.013-4.338-3.48-7.844-7.773-7.844" fill="currentColor" />
+                  </svg>
+                </span>
+                <span className="github-link__label">{t.githubSourceLabel}</span>
+              </a>
+            </div>
+
+            <div className="hero-actions">
+              <div className="lang-switcher" aria-label={t.languageLabel}>
+                <button
+                  className={`lang-switcher__button ${locale === 'zh' ? 'is-active' : ''}`}
+                  onClick={() => setLocale('zh')}
+                  type="button"
+                >
+                  {t.languageZh}
+                </button>
+                <button
+                  className={`lang-switcher__button ${locale === 'en' ? 'is-active' : ''}`}
+                  onClick={() => setLocale('en')}
+                  type="button"
+                >
+                  {t.languageEn}
+                </button>
+              </div>
             </div>
           </div>
           <h1>Codex Configurator</h1>
