@@ -1,0 +1,17 @@
+{
+  "name": "Codex Configurator",
+  "short_name": "Codex Config",
+  "description": "Static WebUI for generating Codex setup scripts, config.toml, MCP snippets, and install guidance.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#08060d",
+  "theme_color": "#08060d",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

@@ -1,0 +1,75 @@
+# Codex Config Generator
+
+[English](./README.md)
+
+Codex Config Generator 是一个静态 Web 应用，用来为 Linux、macOS 和 Windows 生成 Codex 配置产物。它可以帮助用户整理安装说明、Provider 配置、`config.toml` 以及 MCP 片段，整个过程不依赖后端服务。
+
+线上地址： [codex-config.thingsbud.com](https://codex-config.thingsbud.com/)
+
+## 功能概览
+
+- 识别浏览器 OS，并允许手动切换目标平台。
+- 生成 Codex CLI 与 Codex App 场景下的配置输出。
+- 支持 Azure OpenAI、自定义 OpenAI 兼容 Provider、本地 OpenAI 兼容 Provider。
+- 提供 MCP 预设模板，并支持维护多个自定义 MCP 条目。
+- 所有输入都只保存在浏览器内存中，不落库。
+- 以纯静态站点方式交付，可部署到 Azure Static Web Apps。
+
+## 项目结构
+
+```text
+.
+├── codex-setup-lab/          # Vite + React 前端
+├── .github/workflows/        # GitHub Actions 部署流程
+├── start.sh                  # 本地开发启动脚本
+└── deploy.sh                 # 生产构建与 Azure Static Web Apps 部署脚本
+```
+
+## 本地开发
+
+### 环境要求
+
+- Node.js 20+
+- pnpm
+
+### 启动项目
+
+```bash
+./start.sh
+```
+
+脚本会在需要时自动安装依赖，并启动 Vite 开发服务器，默认地址为 `http://localhost:5173`。
+
+也可以直接进入前端目录运行：
+
+```bash
+cd codex-setup-lab
+pnpm install
+pnpm dev --host 0.0.0.0
+```
+
+## 构建
+
+```bash
+cd codex-setup-lab
+pnpm build
+```
+
+## 部署
+
+仓库已经包含 GitHub Actions 工作流 `.github/workflows/deploy-azure-static-web-app.yml`，也提供了手动部署脚本：
+
+```bash
+./deploy.sh
+```
+
+部署时需要满足以下任一条件：
+
+- 设置 `SWA_CLI_DEPLOYMENT_TOKEN`
+- 设置 `AZURE_STATIC_WEB_APPS_API_TOKEN`
+- 或设置 `AZURE_STATIC_WEB_APPS_APP_NAME`，并确保 Azure CLI 已登录，以便脚本自动拉取 token
+
+可选环境变量：
+
+- `AZURE_RESOURCE_GROUP`
+- `AZURE_STATIC_WEB_APPS_ENVIRONMENT`

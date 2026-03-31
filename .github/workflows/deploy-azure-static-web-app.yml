@@ -1,0 +1,38 @@
+name: Deploy Azure Static Web App
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      SWA_CLI_DEPLOYMENT_TOKEN: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+      AZURE_STATIC_WEB_APPS_ENVIRONMENT: production
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: codex-setup-lab/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        working-directory: codex-setup-lab
+        run: pnpm install --frozen-lockfile
+
+      - name: Deploy to Azure Static Web Apps
+        run: ./deploy.sh
