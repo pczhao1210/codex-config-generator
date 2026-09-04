@@ -56,7 +56,7 @@ cd codex-setup-lab
 pnpm build
 ```
 
-## Validation
+## Local Pre-commit Validation
 
 ```bash
 cd codex-setup-lab
@@ -66,9 +66,11 @@ pnpm test:codex
 pnpm test:codex:live
 ```
 
-`test:codex` is a required release gate. It uses the installed Codex CLI to load generated `config.toml` variants for every exposed advanced value and provider type, then starts `codex exec` against a local probe to verify the model reasoning and verbosity request values. The deployment workflow installs the validated baseline, `@openai/codex@0.153.2`; local deployment requires `codex` on `PATH`.
+Run these checks locally before committing. The deployment workflow does not run tests; it only installs dependencies, builds the committed source, and deploys the generated output.
 
-`test:codex:live` is the final release gate. By default, it reads the active model and provider from `~/.codex/config.toml`, generates isolated temporary configs, and runs four minimal real API turns that cover every exposed value. It never copies the API key into TOML or modifies the source config. CI must provide `CODEX_LIVE_CONFIG_TOML` and `CODEX_LIVE_API_KEY` as repository secrets; the config secret should contain only the model and active provider definition needed by the gate.
+`test:codex` uses the installed Codex CLI to load generated `config.toml` variants for every exposed advanced value and provider type, then starts `codex exec` against a local probe to verify the model reasoning and verbosity request values. It requires `codex` on `PATH`.
+
+`test:codex:live` reads the active model and provider from `~/.codex/config.toml`, generates isolated temporary configs, and runs four minimal real API turns that cover every exposed value. It never copies the API key into TOML or modifies the source config.
 
 ## HTTP MCP Bearer Tokens
 

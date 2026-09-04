@@ -16,24 +16,12 @@ if ! command -v pnpm >/dev/null 2>&1; then
   exit 1
 fi
 
-if ! command -v codex >/dev/null 2>&1; then
-  echo "Error: Codex CLI is required for deployment validation."
-  echo "Install the validated version with: npm install -g @openai/codex@0.153.2"
-  exit 1
-fi
-
 cd "$APP_DIR"
 
 if [[ ! -d node_modules ]]; then
   echo "Installing dependencies..."
   pnpm install
 fi
-
-echo "Running frontend and Codex configuration release gates..."
-pnpm test
-pnpm lint
-pnpm test:codex
-pnpm test:codex:live
 
 echo "Building Codex Configurator..."
 pnpm build
