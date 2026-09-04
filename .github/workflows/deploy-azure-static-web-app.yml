@@ -9,30 +9,45 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
     env:
-      SWA_CLI_DEPLOYMENT_TOKEN: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+      SWA_CLI_DEPLOYMENT_TOKEN: ${{ secrets.SWA_CLI_DEPLOYMENT_TOKEN || secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
       AZURE_STATIC_WEB_APPS_ENVIRONMENT: production
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
+
+      - name: Validate deployment credentials
+        shell: bash
+        run: |
+          if [[ -z "${SWA_CLI_DEPLOYMENT_TOKEN:-}" ]]; then
+            echo "::error title=Missing deployment secret::Add SWA_CLI_DEPLOYMENT_TOKEN or AZURE_STATIC_WEB_APPS_API_TOKEN in repository Settings > Secrets and variables > Actions."
+            exit 1
+          fi
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6.0.10
         with:
-          version: 10
+          version: 10.32.1
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7.0.0
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
           cache-dependency-path: codex-setup-lab/pnpm-lock.yaml
 
       - name: Install frontend dependencies
         working-directory: codex-setup-lab
         run: pnpm install --frozen-lockfile
+
+      - name: Validate frontend
+        working-directory: codex-setup-lab
+        run: |
+          pnpm test
+          pnpm lint
 
       - name: Deploy to Azure Static Web Apps
         run: ./deploy.sh
