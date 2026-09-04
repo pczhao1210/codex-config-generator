@@ -2,6 +2,8 @@ export type TargetOs = 'linux' | 'macos' | 'windows'
 export type ProviderId = 'azure' | 'custom' | 'local'
 export type McpProtocol = 'stdio' | 'http'
 export type LocalProviderKind = 'ollama' | 'lmstudio' | 'custom'
+export type CustomProviderPreset = 'newapi' | 'custom'
+export type ContextWindowLimit = 'provider-default' | '272k'
 export type Locale = 'zh' | 'en'
 
 export interface LinkCard {
@@ -53,6 +55,7 @@ export interface CustomMcpEntry {
   env: string
   url: string
   bearerTokenEnvVar: string
+  bearerTokenValue: string
   expanded: boolean
 }
 
@@ -62,10 +65,12 @@ export interface SetupState {
   installApp: boolean
   provider: ProviderId
   model: string
+  contextWindowLimit: ContextWindowLimit
   apiKeyEnvVar: string
   apiKeyValue: string
   azureBaseUrl: string
   azureApiVersion: string
+  customProviderPreset: CustomProviderPreset
   customProviderId: string
   customProviderName: string
   customProviderBaseUrl: string
@@ -176,7 +181,7 @@ const copy = {
         url: 'https://mcp.figma.com/mcp',
         bearerTokenEnvVar: 'FIGMA_OAUTH_TOKEN',
         secretFieldLabel: 'Figma OAuth Token',
-        secretHelpText: '如果填写，生成的脚本会持久化 FIGMA_OAUTH_TOKEN。',
+        secretHelpText: '如果填写，生成的脚本会持久化 FIGMA_OAUTH_TOKEN；留空则在脚本运行时提示输入。',
       },
       {
         id: 'microsoft-docs',
@@ -321,7 +326,7 @@ const copy = {
         url: 'https://mcp.figma.com/mcp',
         bearerTokenEnvVar: 'FIGMA_OAUTH_TOKEN',
         secretFieldLabel: 'Figma OAuth Token',
-        secretHelpText: 'If provided, the generated script will persist FIGMA_OAUTH_TOKEN.',
+        secretHelpText: 'If provided, the generated script persists FIGMA_OAUTH_TOKEN; otherwise it prompts at runtime.',
       },
       {
         id: 'microsoft-docs',
@@ -382,11 +387,13 @@ export const defaultState: SetupState = {
   installCli: true,
   installApp: true,
   provider: 'custom',
-  model: 'gpt-5.4',
+  model: 'gpt-5.6-sol',
+  contextWindowLimit: 'provider-default',
   apiKeyEnvVar: 'AZURE_OPENAI_API_KEY',
   apiKeyValue: '',
   azureBaseUrl: 'https://YOUR_RESOURCE_NAME.openai.azure.com/openai/v1',
   azureApiVersion: '',
+  customProviderPreset: 'custom',
   customProviderId: 'proxy',
   customProviderName: 'Custom OpenAI-Compatible Provider',
   customProviderBaseUrl: '',
@@ -432,6 +439,7 @@ export function createCustomMcpEntry(seed: number): CustomMcpEntry {
     env: '',
     url: '',
     bearerTokenEnvVar: 'MCP_TOKEN',
+    bearerTokenValue: '',
     expanded: true,
   }
 }
@@ -512,6 +520,10 @@ export function getSelectedPresetSecrets(state: SetupState, locale: Locale): Mcp
   return getMcpPresets(locale).filter((preset) => selectedIds.has(preset.id) && (preset.bearerTokenEnvVar || preset.stdioSecretEnvVar))
 }
 
+function isValidEnvironmentVariableName(value: string): boolean {
+  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(value)
+}
+
 export function validateStep(stepIndex: number, state: SetupState, locale: Locale): string | null {
   if (stepIndex <= 0) {
     return null
@@ -524,6 +536,10 @@ export function validateStep(stepIndex: number, state: SetupState, locale: Local
   }
 
   if (stepIndex === 2) {
+    if (!state.model.trim()) {
+      return locale === 'zh' ? '模型名不能为空。' : 'Model name is required.'
+    }
+
     if (state.provider === 'azure') {
       if (!state.azureBaseUrl.trim()) {
         return locale === 'zh'
@@ -534,6 +550,11 @@ export function validateStep(stepIndex: number, state: SetupState, locale: Local
         return locale === 'zh'
           ? 'Azure OpenAI 需要填写 API key 对应的环境变量名。'
           : 'Azure OpenAI requires the API key environment variable name.'
+      }
+      if (!isValidEnvironmentVariableName(state.apiKeyEnvVar.trim())) {
+        return locale === 'zh'
+          ? 'Azure OpenAI 的环境变量名格式无效。'
+          : 'The Azure OpenAI environment variable name is invalid.'
       }
     }
 
@@ -553,6 +574,16 @@ export function validateStep(stepIndex: number, state: SetupState, locale: Local
           ? '自定义 OpenAI 兼容 Provider 需要填写 env_key。'
           : 'A custom OpenAI-compatible provider requires an env_key.'
       }
+      if (!isValidEnvironmentVariableName(state.customProviderEnvKey.trim())) {
+        return locale === 'zh'
+          ? '自定义 Provider 的环境变量名格式无效。'
+          : 'The custom provider environment variable name is invalid.'
+      }
+      if (['openai', 'ollama', 'lmstudio'].includes(slugify(state.customProviderId))) {
+        return locale === 'zh'
+          ? '该 Provider ID 是 Codex 保留名称，请换一个名称。'
+          : 'That provider ID is reserved by Codex. Choose another name.'
+      }
     }
 
     if (state.provider === 'local' && !state.localProviderBaseUrl.trim()) {
@@ -560,15 +591,31 @@ export function validateStep(stepIndex: number, state: SetupState, locale: Local
         ? '本地 OpenAI 兼容 Provider 需要填写 base URL。'
         : 'A local OpenAI-compatible provider requires a base URL.'
     }
+
+    if (state.provider === 'local' && state.localProviderEnvKey.trim() && !isValidEnvironmentVariableName(state.localProviderEnvKey.trim())) {
+      return locale === 'zh'
+        ? '本地 Provider 的环境变量名格式无效。'
+        : 'The local provider environment variable name is invalid.'
+    }
   }
 
   if (stepIndex === 3) {
+    const serverIds = new Set(state.selectedMcpPresetIds.map(slugify))
+
     for (const entry of state.customMcps) {
       if (!entry.name.trim()) {
         return locale === 'zh'
           ? '每个自定义 MCP 都需要填写名称。'
           : 'Each custom MCP entry needs a name.'
       }
+
+      const serverId = slugify(entry.name)
+      if (serverIds.has(serverId)) {
+        return locale === 'zh'
+          ? `MCP 名称 ${entry.name} 与另一项生成了相同的配置 ID。`
+          : `MCP name ${entry.name} produces the same config ID as another entry.`
+      }
+      serverIds.add(serverId)
 
       if (entry.protocol === 'stdio' && !entry.command.trim()) {
         return locale === 'zh'
@@ -580,6 +627,18 @@ export function validateStep(stepIndex: number, state: SetupState, locale: Local
         return locale === 'zh'
           ? `自定义 MCP ${entry.name} 缺少 url。`
           : `Custom MCP ${entry.name} is missing a URL.`
+      }
+
+      if (entry.protocol === 'http' && entry.bearerTokenValue && !entry.bearerTokenEnvVar.trim()) {
+        return locale === 'zh'
+          ? `自定义 MCP ${entry.name} 填写了 token，但缺少 bearer_token_env_var。`
+          : `Custom MCP ${entry.name} has a token but no bearer_token_env_var.`
+      }
+
+      if (entry.protocol === 'http' && entry.bearerTokenEnvVar.trim() && !isValidEnvironmentVariableName(entry.bearerTokenEnvVar.trim())) {
+        return locale === 'zh'
+          ? `自定义 MCP ${entry.name} 的 bearer token 环境变量名格式无效。`
+          : `Custom MCP ${entry.name} has an invalid bearer token environment variable name.`
       }
     }
   }
@@ -640,6 +699,8 @@ export function getSummaryItems(state: SetupState, detectedOs: TargetOs | null, 
       state.installApp ? 'Codex App' : '',
     ].filter(Boolean).join(' + ')}`,
     `Provider: ${providerLabels[state.provider]}`,
+    `Model: ${state.model || (locale === 'zh' ? '未填写' : 'Not set')}`,
+    `${locale === 'zh' ? '上下文限制' : 'Context Limit'}: ${state.contextWindowLimit === '272k' ? '272K' : locale === 'zh' ? 'Provider 默认' : 'Provider Default'}`,
     `${locale === 'zh' ? 'API Key' : 'API Key'}: ${getKeyModeLabel(state, locale)}`,
     `MCP: ${mcpSummary}`,
   ]
@@ -652,6 +713,7 @@ export function getEnvPersistenceGuide(os: TargetOs, locale: Locale): EnvPersist
       bullets: [
         locale === 'zh' ? '保存到当前用户的环境变量。' : 'Persisted into the current user environment variables.',
         locale === 'zh' ? '重新打开终端后生效。' : 'Takes effect after opening a new terminal session.',
+        locale === 'zh' ? '请完全重启 Codex App 或 VS Code，使其继承新的环境变量。' : 'Fully restart Codex App or VS Code so it inherits the new environment variables.',
       ],
     }
   }
@@ -662,6 +724,7 @@ export function getEnvPersistenceGuide(os: TargetOs, locale: Locale): EnvPersist
       bullets: [
         locale === 'zh' ? '保存到当前用户的 shell 配置文件。' : 'Persisted into the current user shell profile.',
         locale === 'zh' ? '重新打开终端后生效。' : 'Takes effect after opening a new terminal session.',
+        locale === 'zh' ? '从新终端启动 Codex App 或 VS Code，确保其继承新的环境变量。' : 'Launch Codex App or VS Code from a new terminal so it inherits the new environment variables.',
       ],
     }
   }
@@ -671,6 +734,7 @@ export function getEnvPersistenceGuide(os: TargetOs, locale: Locale): EnvPersist
     bullets: [
       locale === 'zh' ? '保存到当前用户的 shell 配置文件。' : 'Persisted into the current user shell profile.',
       locale === 'zh' ? '重新打开终端后生效。' : 'Takes effect after opening a new terminal session.',
+      locale === 'zh' ? '从新终端启动 Codex 或 VS Code，确保其继承新的环境变量。' : 'Launch Codex or VS Code from a new terminal so it inherits the new environment variables.',
     ],
   }
 }
@@ -711,6 +775,10 @@ function parseKeyValueLines(source: string): Record<string, string> {
 
 function tomlString(value: string): string {
   return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+}
+
+function shellSingleQuoted(value: string): string {
+  return `'${value.replace(/'/g, `'"'"'`)}'`
 }
 
 function pushTomlRecord(header: string, record: Record<string, string>, lines: string[]): void {
@@ -772,11 +840,15 @@ function pushCustomMcp(entry: CustomMcpEntry, lines: string[]): void {
 export function buildConfigToml(state: SetupState): string {
   const mcpPresets = getMcpPresets('en')
   const lines: string[] = [
-    `model = ${tomlString(state.model)}`,
+    `model = ${tomlString(state.model.trim())}`,
     'model_reasoning_effort = "high"',
-    'personality = "friendly"',
+    'personality = "pragmatic"',
     'model_reasoning_summary = "auto"',
   ]
+
+  if (state.contextWindowLimit === '272k') {
+    lines.push('model_context_window = 272000')
+  }
 
   if (state.provider === 'azure') {
     lines.push('model_provider = "azure"')
@@ -798,6 +870,7 @@ export function buildConfigToml(state: SetupState): string {
     lines.push(`name = ${tomlString(state.customProviderName.trim() || 'Custom OpenAI-Compatible Provider')}`)
     lines.push(`base_url = ${tomlString(state.customProviderBaseUrl.trim())}`)
     lines.push(`env_key = ${tomlString(state.customProviderEnvKey.trim())}`)
+    lines.push('wire_api = "responses"')
   }
 
   if (state.provider === 'local') {
@@ -842,6 +915,44 @@ function getUnixStartupFiles(os: TargetOs): string[] {
   return ['$HOME/.bashrc', '$HOME/.profile']
 }
 
+interface SecretPair {
+  name: string
+  value: string
+}
+
+function collectPersistentSecrets(state: SetupState): SecretPair[] {
+  const candidates: SecretPair[] = [
+    { name: getActiveEnvVarName(state), value: state.apiKeyValue },
+    ...getSelectedPresetSecrets(state, 'en')
+      .filter((preset) => preset.bearerTokenEnvVar)
+      .map((preset) => ({
+        name: preset.bearerTokenEnvVar ?? '',
+        value: state.presetMcpSecrets[preset.id] ?? '',
+      })),
+    ...state.customMcps
+      .filter((entry) => entry.protocol === 'http' && entry.bearerTokenEnvVar.trim())
+      .map((entry) => ({
+        name: entry.bearerTokenEnvVar,
+        value: entry.bearerTokenValue,
+      })),
+  ]
+
+  const secrets = new Map<string, SecretPair>()
+  candidates.forEach((candidate) => {
+    const name = candidate.name.trim()
+    if (!name) {
+      return
+    }
+
+    const existing = secrets.get(name)
+    if (!existing || (!existing.value && candidate.value)) {
+      secrets.set(name, { name, value: candidate.value })
+    }
+  })
+
+  return [...secrets.values()]
+}
+
 function buildUnixInstallSection(state: SetupState): string[] {
   const lines: string[] = []
   const appUrl = getInstallCatalog('en')[state.targetOs].app.href
@@ -858,26 +969,20 @@ function buildUnixInstallSection(state: SetupState): string[] {
 }
 
 function appendUnixEnvPersistence(state: SetupState, lines: string[]): void {
-  const secretPairs = [
-    { name: getActiveEnvVarName(state), value: state.apiKeyValue },
-    ...getSelectedPresetSecrets(state, 'en')
-      .filter((preset) => preset.bearerTokenEnvVar)
-      .map((preset) => ({
-        name: preset.bearerTokenEnvVar ?? '',
-        value: state.presetMcpSecrets[preset.id] ?? '',
-      })),
-  ].filter((entry) => entry.name.trim())
+  const secretPairs = collectPersistentSecrets(state)
 
   if (secretPairs.length === 0) {
     return
   }
 
   lines.push('')
+  lines.push('umask 077')
   lines.push(': > "$CODEX_HOME/env.sh"')
+  lines.push('chmod 600 "$CODEX_HOME/env.sh"')
 
   secretPairs.forEach((pair, index) => {
-    lines.push(`ENV_NAME_${index}=${tomlString(pair.name)}`)
-    lines.push(`ENV_VALUE_${index}=${tomlString(pair.value)}`)
+    lines.push(`ENV_NAME_${index}=${shellSingleQuoted(pair.name)}`)
+    lines.push(`ENV_VALUE_${index}=${shellSingleQuoted(pair.value)}`)
     lines.push(`if [ -z "$ENV_VALUE_${index}" ]; then`)
     lines.push(`  read -r -s -p "Enter \${ENV_NAME_${index}}: " ENV_VALUE_${index}`)
     lines.push('  echo')
@@ -949,25 +1054,23 @@ function escapePowerShellSingleQuote(value: string): string {
 }
 
 function appendWindowsEnvPersistence(state: SetupState, lines: string[]): void {
-  const secretPairs = [
-    { name: getActiveEnvVarName(state), value: state.apiKeyValue },
-    ...getSelectedPresetSecrets(state, 'en')
-      .filter((preset) => preset.bearerTokenEnvVar)
-      .map((preset) => ({
-        name: preset.bearerTokenEnvVar ?? '',
-        value: state.presetMcpSecrets[preset.id] ?? '',
-      })),
-  ].filter((entry) => entry.name.trim())
+  const secretPairs = collectPersistentSecrets(state)
 
   if (secretPairs.length === 0) {
     return
   }
 
+  lines.push('function Read-SecretValue([string]$Prompt) {')
+  lines.push('  $SecureValue = Read-Host $Prompt -AsSecureString')
+  lines.push('  $Credential = [PSCredential]::new("token", $SecureValue)')
+  lines.push('  return $Credential.GetNetworkCredential().Password')
+  lines.push('}')
+
   secretPairs.forEach((pair, index) => {
     lines.push(`$EnvName${index} = '${escapePowerShellSingleQuote(pair.name)}'`)
-    lines.push(`$EnvValue${index} = @'\n${pair.value}\n'@.TrimEnd()`)
+    lines.push(`$EnvValue${index} = '${escapePowerShellSingleQuote(pair.value)}'`)
     lines.push(`if ([string]::IsNullOrWhiteSpace($EnvValue${index})) {`)
-    lines.push(`  $EnvValue${index} = Read-Host "Enter $EnvName${index}"`)
+    lines.push(`  $EnvValue${index} = Read-SecretValue "Enter $EnvName${index}"`)
     lines.push('}')
     lines.push(`[Environment]::SetEnvironmentVariable($EnvName${index}, $EnvValue${index}, "User")`)
     lines.push(`Set-Item -Path ("Env:{0}" -f $EnvName${index}) -Value $EnvValue${index}`)

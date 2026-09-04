@@ -10,8 +10,9 @@ Codex Config Generator 是一个静态 Web 应用，用来为 Linux、macOS 和 
 
 - 识别浏览器 OS，并允许手动切换目标平台。
 - 生成 Codex CLI 与 Codex App 场景下的配置输出。
-- 支持 Azure OpenAI、自定义 OpenAI 兼容 Provider、本地 OpenAI 兼容 Provider。
-- 提供 MCP 预设模板，并支持维护多个自定义 MCP 条目。
+- 默认使用 `gpt-5.6-sol` 与 `pragmatic` personality，并提供可选的 272K 上下文限制。
+- 支持 Azure OpenAI、New API、自定义 OpenAI 兼容 Provider、本地 OpenAI 兼容 Provider。
+- 提供 MCP 预设、自定义 MCP 条目，以及基于环境变量的 HTTP MCP Bearer 认证。
 - 所有输入都只保存在浏览器内存中，不落库。
 - 以纯静态站点方式交付，可部署到 Azure Static Web Apps。
 
@@ -54,6 +55,18 @@ pnpm dev --host 0.0.0.0
 cd codex-setup-lab
 pnpm build
 ```
+
+## 验证
+
+```bash
+cd codex-setup-lab
+pnpm test
+pnpm lint
+```
+
+## HTTP MCP Bearer Token
+
+当配置为 `bearer_token_env_var = "MCP_TOKEN"` 时，请填写不带 `Bearer ` 前缀的原始 token。Codex 会从自身进程环境读取 `MCP_TOKEN` 并自动添加认证方案。生成脚本写入新变量后，需要重新启动终端、Codex App 或 VS Code。
 
 ## 部署
 

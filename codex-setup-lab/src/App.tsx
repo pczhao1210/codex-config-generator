@@ -20,6 +20,7 @@ import {
   setActiveProviderEnvVar,
   validateStep,
   type Artifact,
+  type CustomProviderPreset,
   type CustomMcpEntry,
   type Locale,
   type LocalProviderKind,
@@ -39,6 +40,19 @@ const localProviderDefaults: Record<Exclude<LocalProviderKind, 'custom'>, { name
   lmstudio: {
     name: 'LM Studio',
     baseUrl: 'http://localhost:1234/v1',
+    envKey: 'CUSTOM_API_KEY',
+  },
+}
+
+const customProviderDefaults: Record<CustomProviderPreset, { id: string; name: string; envKey: string }> = {
+  newapi: {
+    id: 'newapi',
+    name: 'New API',
+    envKey: 'NEW_API_KEY',
+  },
+  custom: {
+    id: 'proxy',
+    name: 'Custom OpenAI-Compatible Provider',
     envKey: 'CUSTOM_API_KEY',
   },
 }
@@ -82,12 +96,19 @@ const messages = {
     keyInput: 'Key 输入',
     keyPlaceholder: '留空则脚本执行时提示输入',
     providerTitle: 'Provider',
-    providerLead: '去掉默认 OpenAI Provider，只保留 Azure OpenAI、自定义 OpenAI 兼容 Provider 和本地 OpenAI 兼容 Provider。',
+    providerLead: '支持 Azure OpenAI、New API、自定义 OpenAI 兼容 Provider 和本地 OpenAI 兼容 Provider。',
     modelName: '模型名',
+    contextWindow: '上下文限制',
+    providerDefaultContext: 'Provider 默认',
+    context272k: '272K（控制费用）',
+    contextWindowHelp: '272K 会写入 model_context_window = 272000；它限制单次上下文，不是总费用硬上限。',
     azureEndpoint: 'Azure v1 endpoint',
     optionalApiVersion: '可选 API version',
     apiVersionPlaceholder: '留空则不写 query_params',
     providerId: 'Provider ID',
+    customProviderPreset: '自定义 Provider 预设',
+    newApiPreset: 'New API',
+    manualProviderPreset: '手动配置',
     displayName: '展示名称',
     baseUrl: 'Base URL',
     localProviderName: 'Provider 名称',
@@ -97,7 +118,8 @@ const messages = {
     step4Title: 'MCP 与可选扩展',
     step4Lead: '这里不做依赖自动探测，只负责把你选择的 MCP 片段与脚本动作写进最终产物。热门模板默认折叠，自定义 MCP 支持多条并行管理。',
     secretFallback: '访问凭证',
-    secretPlaceholder: '留空则不写入该模板的密钥配置',
+    secretPlaceholder: '留空则由生成脚本在运行时提示输入',
+    stdioSecretPlaceholder: '留空则不写入该 MCP 的 env 配置',
     customMcpTitle: '自定义 MCP',
     customMcpLead: '可通过点击添加，维护多个 MCP。新建项默认展开，收起后仍显示核心摘要。',
     addMcp: '添加 MCP',
@@ -112,6 +134,8 @@ const messages = {
     stdioMeta: '本地命令启动',
     httpMeta: '远程 HTTP 地址接入',
     envPlaceholder: 'TOKEN=demo\nREGION=us-east-1',
+    bearerTokenValue: 'Bearer Token',
+    bearerTokenHelp: '填写原始 token，不要添加 Bearer 前缀。留空则由生成脚本运行时提示输入。',
     step5Title: '生成结果',
     step5Lead: '最终产物只基于当前内存里的输入生成，不会自动保存草稿，也不会调用任何后端。',
     windowsOutputNotice: 'Windows 会同时提供 PowerShell 和 bat。推荐优先运行 PowerShell，bat 适合作为兼容入口。',
@@ -159,12 +183,19 @@ const messages = {
     keyInput: 'Key Input',
     keyPlaceholder: 'Leave empty to prompt during script execution',
     providerTitle: 'Provider',
-    providerLead: 'The default OpenAI provider is removed. Only Azure OpenAI, custom OpenAI-compatible, and local OpenAI-compatible providers remain.',
+    providerLead: 'Configure Azure OpenAI, New API, a custom OpenAI-compatible provider, or a local OpenAI-compatible provider.',
     modelName: 'Model Name',
+    contextWindow: 'Context Limit',
+    providerDefaultContext: 'Provider Default',
+    context272k: '272K (Cost Control)',
+    contextWindowHelp: '272K writes model_context_window = 272000. It limits one active context, not total spending.',
     azureEndpoint: 'Azure v1 endpoint',
     optionalApiVersion: 'Optional API version',
     apiVersionPlaceholder: 'Leave empty to skip query_params',
     providerId: 'Provider ID',
+    customProviderPreset: 'Custom Provider Preset',
+    newApiPreset: 'New API',
+    manualProviderPreset: 'Manual',
     displayName: 'Display Name',
     baseUrl: 'Base URL',
     localProviderName: 'Provider Name',
@@ -174,7 +205,8 @@ const messages = {
     step4Title: 'MCP And Optional Extensions',
     step4Lead: 'This page does not auto-detect dependencies. It only writes the selected MCP blocks and script actions into the final output. Popular templates stay compact, and custom MCP entries can be managed in parallel.',
     secretFallback: 'Credential',
-    secretPlaceholder: 'Leave empty to skip writing this template secret',
+    secretPlaceholder: 'Leave empty to prompt when the generated script runs',
+    stdioSecretPlaceholder: 'Leave empty to omit this MCP env value',
     customMcpTitle: 'Custom MCP',
     customMcpLead: 'Add and maintain multiple MCP entries here. New items open by default, and collapsed cards still show a short summary.',
     addMcp: 'Add MCP',
@@ -189,6 +221,8 @@ const messages = {
     stdioMeta: 'Launch through a local command',
     httpMeta: 'Connect through a remote HTTP endpoint',
     envPlaceholder: 'TOKEN=demo\nREGION=us-east-1',
+    bearerTokenValue: 'Bearer Token',
+    bearerTokenHelp: 'Enter the raw token without the Bearer prefix. Leave empty to prompt when the generated script runs.',
     step5Title: 'Generated Output',
     step5Lead: 'Everything below is generated from the current in-memory state only. The app does not autosave drafts and does not call any backend.',
     windowsOutputNotice: 'Windows includes both PowerShell and bat output. PowerShell is the recommended path and bat remains as a compatibility wrapper.',
@@ -283,8 +317,21 @@ function App() {
       ...previous,
       provider,
       apiKeyEnvVar: provider === 'azure' ? getProviderEnvDefault(provider) : previous.apiKeyEnvVar,
-      customProviderEnvKey: provider === 'custom' ? getProviderEnvDefault(provider) : previous.customProviderEnvKey,
+      customProviderEnvKey: provider === 'custom'
+        ? previous.customProviderEnvKey || getProviderEnvDefault(provider)
+        : previous.customProviderEnvKey,
       localProviderEnvKey: provider === 'local' ? getProviderEnvDefault(provider) : previous.localProviderEnvKey,
+    }))
+  }
+
+  const handleCustomProviderPresetChange = (preset: CustomProviderPreset) => {
+    const defaults = customProviderDefaults[preset]
+    setForm((previous) => ({
+      ...previous,
+      customProviderPreset: preset,
+      customProviderId: defaults.id,
+      customProviderName: defaults.name,
+      customProviderEnvKey: defaults.envKey,
     }))
   }
 
@@ -556,6 +603,27 @@ function App() {
                 <input onChange={(event) => updateForm('model', event.target.value)} value={form.model} />
               </label>
 
+              <div className="stack gap-sm">
+                <span className="field-label">{t.contextWindow}</span>
+                <div className="option-grid option-grid--two">
+                  <button
+                    className={`choice-card ${form.contextWindowLimit === 'provider-default' ? 'is-active' : ''}`}
+                    onClick={() => updateForm('contextWindowLimit', 'provider-default')}
+                    type="button"
+                  >
+                    <span className="choice-card__label">{t.providerDefaultContext}</span>
+                  </button>
+                  <button
+                    className={`choice-card ${form.contextWindowLimit === '272k' ? 'is-active' : ''}`}
+                    onClick={() => updateForm('contextWindowLimit', '272k')}
+                    type="button"
+                  >
+                    <span className="choice-card__label">{t.context272k}</span>
+                  </button>
+                </div>
+                <p className="field-help">{t.contextWindowHelp}</p>
+              </div>
+
               {form.provider === 'azure' ? (
                 <>
                   <label className="field">
@@ -578,6 +646,23 @@ function App() {
 
               {form.provider === 'custom' ? (
                 <>
+                  <div className="stack gap-sm">
+                    <span className="field-label">{t.customProviderPreset}</span>
+                    <div className="option-grid option-grid--two">
+                      {(['newapi', 'custom'] as const).map((preset) => (
+                        <button
+                          className={`choice-card ${form.customProviderPreset === preset ? 'is-active' : ''}`}
+                          key={preset}
+                          onClick={() => handleCustomProviderPresetChange(preset)}
+                          type="button"
+                        >
+                          <span className="choice-card__label">
+                            {preset === 'newapi' ? t.newApiPreset : t.manualProviderPreset}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   <label className="field">
                     <span>{t.providerId}</span>
                     <input
@@ -679,7 +764,7 @@ function App() {
                     <span>{preset.secretFieldLabel ?? t.secretFallback}</span>
                     <input
                       onChange={(event) => updatePresetSecret(preset, event.target.value)}
-                      placeholder={t.secretPlaceholder}
+                        placeholder={preset.bearerTokenEnvVar ? t.secretPlaceholder : t.stdioSecretPlaceholder}
                       type="password"
                       value={form.presetMcpSecrets[preset.id] ?? ''}
                     />
@@ -788,6 +873,16 @@ function App() {
                               value={entry.bearerTokenEnvVar}
                             />
                           </label>
+                          <label className="field">
+                            <span>{t.bearerTokenValue}</span>
+                            <input
+                              onChange={(event) => updateCustomMcp(entry.id, 'bearerTokenValue', event.target.value)}
+                              placeholder={t.secretPlaceholder}
+                              type="password"
+                              value={entry.bearerTokenValue}
+                            />
+                          </label>
+                          <p className="field-help">{t.bearerTokenHelp}</p>
                         </>
                       )}
                     </div>

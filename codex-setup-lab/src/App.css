@@ -476,6 +476,11 @@
   font-size: 14px;
 }
 
+.field-label {
+  color: var(--text-strong);
+  font-size: 14px;
+}
+
 .field input,
 .field textarea {
   width: 100%;

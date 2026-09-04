@@ -10,8 +10,9 @@ The live site is available at [codex-config.thingsbud.com](https://codex-config.
 
 - Detects the browser OS and lets the user switch the target platform manually.
 - Generates setup output for Codex CLI and Codex App scenarios.
-- Supports Azure OpenAI, custom OpenAI-compatible providers, and local OpenAI-compatible providers.
-- Includes MCP presets and custom MCP entry management.
+- Defaults to `gpt-5.6-sol` with the `pragmatic` personality and offers an optional 272K context limit.
+- Supports Azure OpenAI, New API, custom OpenAI-compatible providers, and local OpenAI-compatible providers.
+- Includes MCP presets, custom MCP entry management, and environment-backed bearer authentication for HTTP MCP servers.
 - Keeps all user input in browser memory only.
 - Ships as a static site that can be deployed to Azure Static Web Apps.
 
@@ -54,6 +55,18 @@ pnpm dev --host 0.0.0.0
 cd codex-setup-lab
 pnpm build
 ```
+
+## Validation
+
+```bash
+cd codex-setup-lab
+pnpm test
+pnpm lint
+```
+
+## HTTP MCP Bearer Tokens
+
+For `bearer_token_env_var = "MCP_TOKEN"`, enter the raw token without the `Bearer ` prefix. Codex reads `MCP_TOKEN` from its process environment and adds the authorization scheme automatically. Restart the terminal, Codex App, or VS Code after the generated setup script persists a new variable.
 
 ## Deployment
 
