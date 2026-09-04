@@ -33,6 +33,13 @@ describe('buildConfigToml', () => {
     expect(config).toContain('model_context_window = 272000')
   })
 
+  it('allows extra startup time for npx-based default MCP servers', () => {
+    const config = buildConfigToml(createValidState())
+
+    expect(config).toMatch(/\[mcp_servers\.context7\][\s\S]*?startup_timeout_sec = 60/)
+    expect(config).toMatch(/\[mcp_servers\.sequential_thinking\][\s\S]*?startup_timeout_sec = 60/)
+  })
+
   it('generates the New API provider preset values', () => {
     const config = buildConfigToml(createValidState({
       customProviderPreset: 'newapi',

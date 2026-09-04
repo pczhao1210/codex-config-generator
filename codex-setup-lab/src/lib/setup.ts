@@ -40,6 +40,7 @@ export interface McpPreset {
   command?: string
   args?: string[]
   url?: string
+  startupTimeoutSec?: number
   bearerTokenEnvVar?: string
   secretFieldLabel?: string
   secretHelpText?: string
@@ -172,6 +173,7 @@ const copy = {
         protocol: 'stdio',
         command: 'npx',
         args: ['-y', '@upstash/context7-mcp'],
+        startupTimeoutSec: 60,
       },
       {
         id: 'figma',
@@ -219,6 +221,7 @@ const copy = {
         protocol: 'stdio',
         command: 'npx',
         args: ['-y', '@modelcontextprotocol/server-sequential-thinking'],
+        startupTimeoutSec: 60,
       },
       {
         id: 'playwright',
@@ -317,6 +320,7 @@ const copy = {
         protocol: 'stdio',
         command: 'npx',
         args: ['-y', '@upstash/context7-mcp'],
+        startupTimeoutSec: 60,
       },
       {
         id: 'figma',
@@ -364,6 +368,7 @@ const copy = {
         protocol: 'stdio',
         command: 'npx',
         args: ['-y', '@modelcontextprotocol/server-sequential-thinking'],
+        startupTimeoutSec: 60,
       },
       {
         id: 'playwright',
@@ -812,6 +817,10 @@ function pushPresetMcp(preset: McpPreset, state: SetupState, lines: string[]): v
     if (preset.bearerTokenEnvVar) {
       lines.push(`bearer_token_env_var = ${tomlString(preset.bearerTokenEnvVar)}`)
     }
+  }
+
+  if (preset.startupTimeoutSec) {
+    lines.push(`startup_timeout_sec = ${preset.startupTimeoutSec}`)
   }
 
   lines.push('')
