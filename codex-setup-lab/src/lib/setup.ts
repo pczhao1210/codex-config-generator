@@ -4,6 +4,10 @@ export type McpProtocol = 'stdio' | 'http'
 export type LocalProviderKind = 'ollama' | 'lmstudio' | 'custom'
 export type CustomProviderPreset = 'newapi' | 'custom'
 export type ContextWindowLimit = 'provider-default' | '272k'
+export type ModelReasoningEffort = 'provider-default' | 'low' | 'medium' | 'high' | 'xhigh'
+export type ModelVerbosity = 'provider-default' | 'low' | 'medium' | 'high'
+export type ApprovalPolicy = 'codex-default' | 'on-request' | 'never'
+export type SandboxMode = 'codex-default' | 'read-only' | 'workspace-write' | 'danger-full-access'
 export type Locale = 'zh' | 'en'
 
 export interface LinkCard {
@@ -45,6 +49,7 @@ export interface McpPreset {
   secretFieldLabel?: string
   secretHelpText?: string
   stdioSecretEnvVar?: string
+  optionalSecret?: boolean
 }
 
 export interface CustomMcpEntry {
@@ -67,6 +72,13 @@ export interface SetupState {
   provider: ProviderId
   model: string
   contextWindowLimit: ContextWindowLimit
+  modelReasoningEffort: ModelReasoningEffort
+  modelVerbosity: ModelVerbosity
+  approvalPolicy: ApprovalPolicy
+  sandboxMode: SandboxMode
+  requestMaxRetries: string
+  streamMaxRetries: string
+  streamIdleTimeoutMs: string
   apiKeyEnvVar: string
   apiKeyValue: string
   azureBaseUrl: string
@@ -81,6 +93,7 @@ export interface SetupState {
   localProviderBaseUrl: string
   localProviderEnvKey: string
   selectedMcpPresetIds: string[]
+  enabledPresetSecrets: Record<string, boolean>
   presetMcpSecrets: Record<string, string>
   customMcps: CustomMcpEntry[]
 }
@@ -174,6 +187,10 @@ const copy = {
         command: 'npx',
         args: ['-y', '@upstash/context7-mcp'],
         startupTimeoutSec: 60,
+        stdioSecretEnvVar: 'CONTEXT7_API_KEY',
+        secretFieldLabel: 'Context7 API Key',
+        secretHelpText: '可选。启用后由安装脚本安全写入环境变量，不会写入 config.toml。',
+        optionalSecret: true,
       },
       {
         id: 'figma',
@@ -321,6 +338,10 @@ const copy = {
         command: 'npx',
         args: ['-y', '@upstash/context7-mcp'],
         startupTimeoutSec: 60,
+        stdioSecretEnvVar: 'CONTEXT7_API_KEY',
+        secretFieldLabel: 'Context7 API Key',
+        secretHelpText: 'Optional. The setup script stores it as an environment variable without writing it to config.toml.',
+        optionalSecret: true,
       },
       {
         id: 'figma',
@@ -394,6 +415,13 @@ export const defaultState: SetupState = {
   provider: 'custom',
   model: 'gpt-5.6-sol',
   contextWindowLimit: 'provider-default',
+  modelReasoningEffort: 'provider-default',
+  modelVerbosity: 'provider-default',
+  approvalPolicy: 'codex-default',
+  sandboxMode: 'codex-default',
+  requestMaxRetries: '',
+  streamMaxRetries: '',
+  streamIdleTimeoutMs: '',
   apiKeyEnvVar: 'AZURE_OPENAI_API_KEY',
   apiKeyValue: '',
   azureBaseUrl: 'https://YOUR_RESOURCE_NAME.openai.azure.com/openai/v1',
@@ -408,6 +436,7 @@ export const defaultState: SetupState = {
   localProviderBaseUrl: 'http://localhost:11434/v1',
   localProviderEnvKey: 'CUSTOM_API_KEY',
   selectedMcpPresetIds: ['context7', 'sequential-thinking'],
+  enabledPresetSecrets: {},
   presetMcpSecrets: {},
   customMcps: [],
 }
@@ -525,8 +554,17 @@ export function getSelectedPresetSecrets(state: SetupState, locale: Locale): Mcp
   return getMcpPresets(locale).filter((preset) => selectedIds.has(preset.id) && (preset.bearerTokenEnvVar || preset.stdioSecretEnvVar))
 }
 
+function isPresetSecretEnabled(state: SetupState, preset: McpPreset): boolean {
+  return !preset.optionalSecret || state.enabledPresetSecrets[preset.id] === true
+}
+
 function isValidEnvironmentVariableName(value: string): boolean {
   return /^[A-Za-z_][A-Za-z0-9_]*$/.test(value)
+}
+
+function isValidUint64(value: string): boolean {
+  const normalized = value.trim()
+  return /^\d+$/.test(normalized) && BigInt(normalized) <= 9_223_372_036_854_775_807n
 }
 
 export function validateStep(stepIndex: number, state: SetupState, locale: Locale): string | null {
@@ -601,6 +639,16 @@ export function validateStep(stepIndex: number, state: SetupState, locale: Local
       return locale === 'zh'
         ? '本地 Provider 的环境变量名格式无效。'
         : 'The local provider environment variable name is invalid.'
+    }
+
+    const retryFields = [state.requestMaxRetries, state.streamMaxRetries]
+    const invalidRetry = retryFields.some((value) => value.trim() && !isValidUint64(value))
+    const timeout = state.streamIdleTimeoutMs.trim()
+    const invalidTimeout = timeout && (!isValidUint64(timeout) || BigInt(timeout) < 1n)
+    if (invalidRetry || invalidTimeout) {
+      return locale === 'zh'
+        ? 'Provider 重试次数必须是 0 到 9223372036854775807 之间的整数；流超时必须是 1 到该上限之间的整数，或留空使用默认值。'
+        : 'Provider retry counts must be integers from 0 to 9223372036854775807; stream timeout must start at 1, or be left blank.'
     }
   }
 
@@ -807,10 +855,8 @@ function pushPresetMcp(preset: McpPreset, state: SetupState, lines: string[]): v
     if (preset.args && preset.args.length > 0) {
       lines.push(`args = [${preset.args.map(tomlString).join(', ')}]`)
     }
-    if (preset.stdioSecretEnvVar && state.presetMcpSecrets[preset.id]?.trim()) {
-      lines.push('')
-      lines.push(`[mcp_servers.${slugify(preset.id)}.env]`)
-      lines.push(`${preset.stdioSecretEnvVar} = ${tomlString(state.presetMcpSecrets[preset.id].trim())}`)
+    if (preset.stdioSecretEnvVar && isPresetSecretEnabled(state, preset)) {
+      lines.push(`env_vars = [${tomlString(preset.stdioSecretEnvVar)}]`)
     }
   } else if (preset.url) {
     lines.push(`url = ${tomlString(preset.url)}`)
@@ -850,10 +896,23 @@ export function buildConfigToml(state: SetupState): string {
   const mcpPresets = getMcpPresets('en')
   const lines: string[] = [
     `model = ${tomlString(state.model.trim())}`,
-    'model_reasoning_effort = "high"',
-    'personality = "pragmatic"',
-    'model_reasoning_summary = "auto"',
   ]
+
+  if (state.modelReasoningEffort !== 'provider-default') {
+    lines.push(`model_reasoning_effort = ${tomlString(state.modelReasoningEffort)}`)
+  }
+
+  if (state.modelVerbosity !== 'provider-default') {
+    lines.push(`model_verbosity = ${tomlString(state.modelVerbosity)}`)
+  }
+
+  if (state.approvalPolicy !== 'codex-default') {
+    lines.push(`approval_policy = ${tomlString(state.approvalPolicy)}`)
+  }
+
+  if (state.sandboxMode !== 'codex-default') {
+    lines.push(`sandbox_mode = ${tomlString(state.sandboxMode)}`)
+  }
 
   if (state.contextWindowLimit === '272k') {
     lines.push('model_context_window = 272000')
@@ -869,6 +928,8 @@ export function buildConfigToml(state: SetupState): string {
     if (state.azureApiVersion.trim()) {
       lines.push(`query_params = { api-version = ${tomlString(state.azureApiVersion.trim())} }`)
     }
+    lines.push('wire_api = "responses"')
+    pushProviderTuning(state, lines)
   }
 
   if (state.provider === 'custom') {
@@ -880,10 +941,11 @@ export function buildConfigToml(state: SetupState): string {
     lines.push(`base_url = ${tomlString(state.customProviderBaseUrl.trim())}`)
     lines.push(`env_key = ${tomlString(state.customProviderEnvKey.trim())}`)
     lines.push('wire_api = "responses"')
+    pushProviderTuning(state, lines)
   }
 
   if (state.provider === 'local') {
-    const providerId = slugify(state.localProviderKind === 'custom' ? state.localProviderName : state.localProviderKind)
+    const providerId = `local_${slugify(state.localProviderKind === 'custom' ? state.localProviderName : state.localProviderKind)}`
     lines.push(`model_provider = ${tomlString(providerId)}`)
     lines.push('')
     lines.push(`[model_providers.${providerId}]`)
@@ -892,6 +954,8 @@ export function buildConfigToml(state: SetupState): string {
     if (state.localProviderEnvKey.trim()) {
       lines.push(`env_key = ${tomlString(state.localProviderEnvKey.trim())}`)
     }
+    lines.push('wire_api = "responses"')
+    pushProviderTuning(state, lines)
   }
 
   if (state.targetOs === 'windows') {
@@ -929,13 +993,25 @@ interface SecretPair {
   value: string
 }
 
+function pushProviderTuning(state: SetupState, lines: string[]): void {
+  if (state.requestMaxRetries.trim()) {
+    lines.push(`request_max_retries = ${state.requestMaxRetries.trim()}`)
+  }
+  if (state.streamMaxRetries.trim()) {
+    lines.push(`stream_max_retries = ${state.streamMaxRetries.trim()}`)
+  }
+  if (state.streamIdleTimeoutMs.trim()) {
+    lines.push(`stream_idle_timeout_ms = ${state.streamIdleTimeoutMs.trim()}`)
+  }
+}
+
 function collectPersistentSecrets(state: SetupState): SecretPair[] {
   const candidates: SecretPair[] = [
     { name: getActiveEnvVarName(state), value: state.apiKeyValue },
     ...getSelectedPresetSecrets(state, 'en')
-      .filter((preset) => preset.bearerTokenEnvVar)
+      .filter((preset) => isPresetSecretEnabled(state, preset))
       .map((preset) => ({
-        name: preset.bearerTokenEnvVar ?? '',
+        name: preset.bearerTokenEnvVar ?? preset.stdioSecretEnvVar ?? '',
         value: state.presetMcpSecrets[preset.id] ?? '',
       })),
     ...state.customMcps

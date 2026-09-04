@@ -355,7 +355,8 @@
 
 .option-grid,
 .card-grid,
-.result-grid {
+.result-grid,
+.form-grid {
   display: grid;
   gap: 14px;
 }
@@ -366,6 +367,14 @@
 }
 
 .option-grid--three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.form-grid--two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.form-grid--three {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
@@ -482,7 +491,8 @@
 }
 
 .field input,
-.field textarea {
+.field textarea,
+.field select {
   width: 100%;
   box-sizing: border-box;
   border: 1px solid var(--panel-border);
@@ -491,6 +501,56 @@
   padding: 14px 16px;
   color: #ffffff;
   font: inherit;
+}
+
+.field select {
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, rgba(255, 255, 255, 0.7) 50%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.7) 50%, transparent 50%);
+  background-position:
+    calc(100% - 20px) 50%,
+    calc(100% - 14px) 50%;
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+}
+
+.advanced-panel {
+  border: 1px solid var(--panel-border);
+  border-radius: 18px;
+  background: var(--panel-quiet);
+  overflow: hidden;
+}
+
+.advanced-panel summary {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 16px 18px;
+  cursor: pointer;
+  color: var(--text-strong);
+}
+
+.advanced-panel summary small {
+  color: var(--text-subtle);
+  line-height: 1.45;
+}
+
+.advanced-panel__body {
+  padding: 4px 18px 18px;
+  border-top: 1px solid var(--panel-border);
+}
+
+.secret-toggle {
+  margin-top: 14px;
+}
+
+.info-card--secret {
+  grid-column: 1 / -1;
+}
+
+.info-card--secret .choice-card__meta {
+  max-width: 64ch;
 }
 
 .field textarea {
@@ -691,7 +751,9 @@ button:disabled {
   .option-grid--three,
   .option-grid--two,
   .card-grid,
-  .preset-grid {
+  .preset-grid,
+  .form-grid--two,
+  .form-grid--three {
     grid-template-columns: 1fr;
   }
 

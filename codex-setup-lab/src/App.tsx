@@ -102,6 +102,18 @@ const messages = {
     providerDefaultContext: 'Provider 默认',
     context272k: '272K（控制费用）',
     contextWindowHelp: '272K 会写入 model_context_window = 272000；它限制单次上下文，不是总费用硬上限。',
+    advancedSettings: 'API 与本地执行高级设置',
+    advancedSettingsLead: '默认沿用 Provider 与 Codex 的能力声明，仅在确认模型或代理支持时覆盖。',
+    reasoningEffort: '推理强度',
+    modelVerbosity: '回答详细度',
+    codexDefault: 'Codex 默认',
+    providerDefault: 'Provider 默认',
+    approvalPolicy: '命令审批策略',
+    sandboxMode: '本地沙箱模式',
+    requestMaxRetries: 'HTTP 请求重试次数',
+    streamMaxRetries: '流中断重试次数',
+    streamIdleTimeout: '流空闲超时（毫秒）',
+    optionalNumberPlaceholder: '留空使用 Codex 默认值',
     azureEndpoint: 'Azure v1 endpoint',
     optionalApiVersion: '可选 API version',
     apiVersionPlaceholder: '留空则不写 query_params',
@@ -120,6 +132,7 @@ const messages = {
     secretFallback: '访问凭证',
     secretPlaceholder: '留空则由生成脚本在运行时提示输入',
     stdioSecretPlaceholder: '留空则不写入该 MCP 的 env 配置',
+    enableOptionalKey: '使用 API Key',
     customMcpTitle: '自定义 MCP',
     customMcpLead: '可通过点击添加，维护多个 MCP。新建项默认展开，收起后仍显示核心摘要。',
     addMcp: '添加 MCP',
@@ -189,6 +202,18 @@ const messages = {
     providerDefaultContext: 'Provider Default',
     context272k: '272K (Cost Control)',
     contextWindowHelp: '272K writes model_context_window = 272000. It limits one active context, not total spending.',
+    advancedSettings: 'Advanced API And Local Execution Settings',
+    advancedSettingsLead: 'Provider and Codex capability defaults are preserved unless you explicitly override them.',
+    reasoningEffort: 'Reasoning Effort',
+    modelVerbosity: 'Response Verbosity',
+    codexDefault: 'Codex Default',
+    providerDefault: 'Provider Default',
+    approvalPolicy: 'Command Approval Policy',
+    sandboxMode: 'Local Sandbox Mode',
+    requestMaxRetries: 'HTTP Request Retries',
+    streamMaxRetries: 'Stream Retries',
+    streamIdleTimeout: 'Stream Idle Timeout (ms)',
+    optionalNumberPlaceholder: 'Leave empty to use the Codex default',
     azureEndpoint: 'Azure v1 endpoint',
     optionalApiVersion: 'Optional API version',
     apiVersionPlaceholder: 'Leave empty to skip query_params',
@@ -207,6 +232,7 @@ const messages = {
     secretFallback: 'Credential',
     secretPlaceholder: 'Leave empty to prompt when the generated script runs',
     stdioSecretPlaceholder: 'Leave empty to omit this MCP env value',
+    enableOptionalKey: 'Use API Key',
     customMcpTitle: 'Custom MCP',
     customMcpLead: 'Add and maintain multiple MCP entries here. New items open by default, and collapsed cards still show a short summary.',
     addMcp: 'Add MCP',
@@ -308,6 +334,16 @@ function App() {
       presetMcpSecrets: {
         ...previous.presetMcpSecrets,
         [preset.id]: value,
+      },
+    }))
+  }
+
+  const togglePresetSecret = (presetId: string, enabled: boolean) => {
+    setForm((previous) => ({
+      ...previous,
+      enabledPresetSecrets: {
+        ...previous.enabledPresetSecrets,
+        [presetId]: enabled,
       },
     }))
   }
@@ -603,27 +639,6 @@ function App() {
                 <input onChange={(event) => updateForm('model', event.target.value)} value={form.model} />
               </label>
 
-              <div className="stack gap-sm">
-                <span className="field-label">{t.contextWindow}</span>
-                <div className="option-grid option-grid--two">
-                  <button
-                    className={`choice-card ${form.contextWindowLimit === 'provider-default' ? 'is-active' : ''}`}
-                    onClick={() => updateForm('contextWindowLimit', 'provider-default')}
-                    type="button"
-                  >
-                    <span className="choice-card__label">{t.providerDefaultContext}</span>
-                  </button>
-                  <button
-                    className={`choice-card ${form.contextWindowLimit === '272k' ? 'is-active' : ''}`}
-                    onClick={() => updateForm('contextWindowLimit', '272k')}
-                    type="button"
-                  >
-                    <span className="choice-card__label">{t.context272k}</span>
-                  </button>
-                </div>
-                <p className="field-help">{t.contextWindowHelp}</p>
-              </div>
-
               {form.provider === 'azure' ? (
                 <>
                   <label className="field">
@@ -719,6 +734,110 @@ function App() {
                   </label>
                 </>
               ) : null}
+
+              <details className="advanced-panel">
+                <summary>
+                  <span>{t.advancedSettings}</span>
+                  <small>{t.advancedSettingsLead}</small>
+                </summary>
+                <div className="advanced-panel__body stack gap-md">
+                  <div className="form-grid form-grid--two">
+                    <label className="field">
+                      <span>{t.reasoningEffort}</span>
+                      <select
+                        onChange={(event) => updateForm('modelReasoningEffort', event.target.value as SetupState['modelReasoningEffort'])}
+                        value={form.modelReasoningEffort}
+                      >
+                        <option value="provider-default">{t.providerDefault}</option>
+                        {(['low', 'medium', 'high', 'xhigh'] as const).map((value) => (
+                          <option key={value} value={value}>{value}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="field">
+                      <span>{t.modelVerbosity}</span>
+                      <select
+                        onChange={(event) => updateForm('modelVerbosity', event.target.value as SetupState['modelVerbosity'])}
+                        value={form.modelVerbosity}
+                      >
+                        <option value="provider-default">{t.providerDefault}</option>
+                        {(['low', 'medium', 'high'] as const).map((value) => (
+                          <option key={value} value={value}>{value}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+
+                  <div className="stack gap-sm">
+                    <span className="field-label">{t.contextWindow}</span>
+                    <div className="option-grid option-grid--two">
+                      <button
+                        className={`choice-card ${form.contextWindowLimit === 'provider-default' ? 'is-active' : ''}`}
+                        onClick={() => updateForm('contextWindowLimit', 'provider-default')}
+                        type="button"
+                      >
+                        <span className="choice-card__label">{t.providerDefaultContext}</span>
+                      </button>
+                      <button
+                        className={`choice-card ${form.contextWindowLimit === '272k' ? 'is-active' : ''}`}
+                        onClick={() => updateForm('contextWindowLimit', '272k')}
+                        type="button"
+                      >
+                        <span className="choice-card__label">{t.context272k}</span>
+                      </button>
+                    </div>
+                    <p className="field-help">{t.contextWindowHelp}</p>
+                  </div>
+
+                  <div className="form-grid form-grid--two">
+                    <label className="field">
+                      <span>{t.approvalPolicy}</span>
+                      <select
+                        onChange={(event) => updateForm('approvalPolicy', event.target.value as SetupState['approvalPolicy'])}
+                        value={form.approvalPolicy}
+                      >
+                        <option value="codex-default">{t.codexDefault}</option>
+                        {(['on-request', 'never'] as const).map((value) => (
+                          <option key={value} value={value}>{value}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="field">
+                      <span>{t.sandboxMode}</span>
+                      <select
+                        onChange={(event) => updateForm('sandboxMode', event.target.value as SetupState['sandboxMode'])}
+                        value={form.sandboxMode}
+                      >
+                        <option value="codex-default">{t.codexDefault}</option>
+                        {(['read-only', 'workspace-write', 'danger-full-access'] as const).map((value) => (
+                          <option key={value} value={value}>{value}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+
+                  <div className="form-grid form-grid--three">
+                    {([
+                      ['requestMaxRetries', t.requestMaxRetries],
+                      ['streamMaxRetries', t.streamMaxRetries],
+                      ['streamIdleTimeoutMs', t.streamIdleTimeout],
+                    ] as const).map(([key, label]) => (
+                      <label className="field" key={key}>
+                        <span>{label}</span>
+                        <input
+                          inputMode="numeric"
+                          max="9223372036854775807"
+                          min={key === 'streamIdleTimeoutMs' ? '1' : '0'}
+                          onChange={(event) => updateForm(key, event.target.value)}
+                          placeholder={t.optionalNumberPlaceholder}
+                          type="number"
+                          value={form[key]}
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </details>
             </div>
           </div>
         </section>
@@ -755,20 +874,34 @@ function App() {
           {selectedPresetSecrets.length > 0 ? (
             <div className="card-grid">
               {selectedPresetSecrets.map((preset) => (
-                <article className="info-card" key={preset.id}>
+                <article className="info-card info-card--secret" key={preset.id}>
                   <p className="info-card__title">{preset.label}</p>
                   <p className="choice-card__meta">{preset.secretHelpText}</p>
-                  {preset.bearerTokenEnvVar ? renderCommandLine(`${preset.id}-bearer-env`, preset.bearerTokenEnvVar) : null}
-                  {preset.stdioSecretEnvVar ? renderCommandLine(`${preset.id}-stdio-env`, preset.stdioSecretEnvVar) : null}
-                  <label className="field">
-                    <span>{preset.secretFieldLabel ?? t.secretFallback}</span>
-                    <input
-                      onChange={(event) => updatePresetSecret(preset, event.target.value)}
-                        placeholder={preset.bearerTokenEnvVar ? t.secretPlaceholder : t.stdioSecretPlaceholder}
-                      type="password"
-                      value={form.presetMcpSecrets[preset.id] ?? ''}
-                    />
-                  </label>
+                  {preset.optionalSecret ? (
+                    <label className="switch-row secret-toggle">
+                      <input
+                        checked={form.enabledPresetSecrets[preset.id] === true}
+                        onChange={(event) => togglePresetSecret(preset.id, event.target.checked)}
+                        type="checkbox"
+                      />
+                      <span><strong>{t.enableOptionalKey}</strong></span>
+                    </label>
+                  ) : null}
+                  {!preset.optionalSecret || form.enabledPresetSecrets[preset.id] === true ? (
+                    <div className="stack gap-sm">
+                      {preset.bearerTokenEnvVar ? renderCommandLine(`${preset.id}-bearer-env`, preset.bearerTokenEnvVar) : null}
+                      {preset.stdioSecretEnvVar ? renderCommandLine(`${preset.id}-stdio-env`, preset.stdioSecretEnvVar) : null}
+                      <label className="field">
+                        <span>{preset.secretFieldLabel ?? t.secretFallback}</span>
+                        <input
+                          onChange={(event) => updatePresetSecret(preset, event.target.value)}
+                          placeholder={t.secretPlaceholder}
+                          type="password"
+                          value={form.presetMcpSecrets[preset.id] ?? ''}
+                        />
+                      </label>
+                    </div>
+                  ) : null}
                 </article>
               ))}
             </div>

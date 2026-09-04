@@ -8,6 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "test": "vitest run",
+    "test:codex": "CODEX_RELEASE_GATE=1 vitest run src/lib/setup.codex.test.ts",
+    "test:codex:live": "CODEX_LIVE_GATE=1 vitest run src/lib/setup.codex.live.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -28,6 +30,7 @@
     "html-inline": "^1.2.0",
     "parcel": "^2.16.4",
     "parcel-resolver-tspaths": "^0.0.9",
+    "smol-toml": "^1.8.0",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.57.0",
     "vite": "^8.0.1",

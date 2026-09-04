@@ -62,7 +62,13 @@ pnpm build
 cd codex-setup-lab
 pnpm test
 pnpm lint
+pnpm test:codex
+pnpm test:codex:live
 ```
+
+`test:codex` 是发布前强制门禁。它调用已安装的 Codex CLI，验证每个高级参数值和 Provider 类型生成的 `config.toml` 均可加载，并通过本地探针启动 `codex exec`，核对推理强度与回答详细度是否进入真实请求。部署工作流固定安装已验证基线版本 `@openai/codex@0.153.2`；本地部署要求 `PATH` 中存在 `codex`。
+
+`test:codex:live` 是最终发布门禁。默认读取 `~/.codex/config.toml` 中的活动模型与 Provider，生成隔离的临时配置，并执行四次最小真实 API 调用，覆盖全部对外开放值。它不会把 API Key 写入 TOML，也不会修改源配置。CI 必须通过仓库 Secrets 提供 `CODEX_LIVE_CONFIG_TOML` 和 `CODEX_LIVE_API_KEY`；配置 Secret 应只包含门禁所需的模型和活动 Provider 定义。
 
 ## HTTP MCP Bearer Token
 

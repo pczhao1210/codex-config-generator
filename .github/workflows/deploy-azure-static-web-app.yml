@@ -15,6 +15,8 @@ jobs:
     env:
       SWA_CLI_DEPLOYMENT_TOKEN: ${{ secrets.SWA_CLI_DEPLOYMENT_TOKEN || secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
       AZURE_STATIC_WEB_APPS_ENVIRONMENT: production
+      CODEX_LIVE_CONFIG_TOML: ${{ secrets.CODEX_LIVE_CONFIG_TOML }}
+      CODEX_LIVE_API_KEY: ${{ secrets.CODEX_LIVE_API_KEY }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7.0.1
@@ -24,6 +26,10 @@ jobs:
         run: |
           if [[ -z "${SWA_CLI_DEPLOYMENT_TOKEN:-}" ]]; then
             echo "::error title=Missing deployment secret::Add SWA_CLI_DEPLOYMENT_TOKEN or AZURE_STATIC_WEB_APPS_API_TOKEN in repository Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          if [[ -z "${CODEX_LIVE_CONFIG_TOML:-}" ]] || [[ -z "${CODEX_LIVE_API_KEY:-}" ]]; then
+            echo "::error title=Missing live Codex gate secrets::Add CODEX_LIVE_CONFIG_TOML and CODEX_LIVE_API_KEY in repository Settings > Secrets and variables > Actions."
             exit 1
           fi
 
@@ -43,11 +49,8 @@ jobs:
         working-directory: codex-setup-lab
         run: pnpm install --frozen-lockfile
 
-      - name: Validate frontend
-        working-directory: codex-setup-lab
-        run: |
-          pnpm test
-          pnpm lint
+      - name: Install validated Codex CLI
+        run: npm install --global @openai/codex@0.153.2
 
       - name: Deploy to Azure Static Web Apps
         run: ./deploy.sh

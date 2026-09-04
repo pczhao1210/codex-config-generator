@@ -14,6 +14,8 @@ dist-ssr
 bundle.html
 *.tsbuildinfo
 *.local
+coverage
+.eslintcache
 
 # Editor directories and files
 .vscode/*
