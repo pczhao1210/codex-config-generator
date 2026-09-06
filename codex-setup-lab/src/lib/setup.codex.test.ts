@@ -1,7 +1,7 @@
 import { spawn, spawnSync } from 'node:child_process'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { buildConfigToml, defaultState, type SetupState } from './setup'
@@ -18,6 +18,33 @@ interface DoctorReport {
 }
 
 const releaseGateEnabled = process.env.CODEX_RELEASE_GATE === '1'
+const modelDiscoveryProbeSlug = 'local-auth-command-discovery-probe'
+
+function buildModelDiscoveryResponse(): Record<string, unknown> {
+  const result = spawnSync('codex', ['debug', 'models', '--bundled'], {
+    encoding: 'utf8',
+  })
+  if (result.error) {
+    throw result.error
+  }
+  if (result.status !== 0) {
+    throw new Error(`Could not read the bundled Codex model schema:\n${result.stderr}`)
+  }
+
+  const catalog = JSON.parse(result.stdout) as { models?: unknown[] }
+  const bundledModel = catalog.models?.[0]
+  if (!bundledModel || typeof bundledModel !== 'object') {
+    throw new Error('The bundled Codex model catalog did not contain a model')
+  }
+
+  return {
+    models: [{
+      ...(bundledModel as Record<string, unknown>),
+      display_name: 'Local Auth Command Discovery Probe',
+      slug: modelDiscoveryProbeSlug,
+    }],
+  }
+}
 
 function createGateState(overrides: Partial<SetupState>): SetupState {
   return {
@@ -64,8 +91,12 @@ function expectConfigLoaded(report: DoctorReport): DoctorCheck {
   return configCheck as DoctorCheck
 }
 
-async function runCodexRequest(overrides: Partial<SetupState>): Promise<Record<string, unknown>> {
-  const codexHome = mkdtempSync(join(tmpdir(), 'codex-request-gate-'))
+async function runCodexRequest(
+  overrides: Partial<SetupState>,
+  endpoint: 'responses' | 'models' = 'responses',
+): Promise<Record<string, unknown>> {
+  const codexHome = mkdtempSync(join(homedir(), '.codex-request-gate-'))
+  const modelDiscoveryResponse = endpoint === 'models' ? buildModelDiscoveryResponse() : null
   let resolveRequest: (body: Record<string, unknown>) => void = () => undefined
   const requestReceived = new Promise<Record<string, unknown>>((resolve) => {
     resolveRequest = resolve
@@ -77,7 +108,34 @@ async function runCodexRequest(overrides: Partial<SetupState>): Promise<Record<s
       body += chunk
     })
     request.on('end', () => {
-      resolveRequest(JSON.parse(body) as Record<string, unknown>)
+      const requestPath = new URL(request.url ?? '/', 'http://localhost').pathname
+      if (!requestPath.endsWith(`/${endpoint}`)) {
+        response.writeHead(404, { connection: 'close' })
+        response.end('Not found')
+        return
+      }
+
+      if (endpoint === 'models') {
+        resolveRequest({
+          capturedAuthorization: request.headers.authorization,
+          capturedMethod: request.method,
+          capturedUrl: request.url,
+        })
+        response.writeHead(200, { connection: 'close', 'content-type': 'application/json' })
+        response.end(JSON.stringify(modelDiscoveryResponse))
+        return
+      }
+
+      if (!body) {
+        response.writeHead(400, { connection: 'close' })
+        response.end('Missing request body')
+        return
+      }
+
+      resolveRequest({
+        ...(JSON.parse(body) as Record<string, unknown>),
+        capturedAuthorization: request.headers.authorization,
+      })
       response.writeHead(503, { connection: 'close' })
       response.end('Release gate captured the request')
     })
@@ -96,29 +154,31 @@ async function runCodexRequest(overrides: Partial<SetupState>): Promise<Record<s
     })
     writeFileSync(join(codexHome, 'config.toml'), buildConfigToml(state))
 
-    const child = spawn('codex', [
-      '--strict-config',
-      'exec',
-      '--skip-git-repo-check',
-      '--json',
-      'Reply with OK.',
-    ], {
+    const args = endpoint === 'models'
+      ? ['debug', 'models']
+      : ['--strict-config', 'exec', '--skip-git-repo-check', '--json', 'Reply with OK.']
+    const child = spawn('codex', args, {
       cwd: codexHome,
       env: {
         ...process.env,
         CODEX_HOME: codexHome,
         CUSTOM_API_KEY: 'release-gate-placeholder',
       },
-      stdio: ['ignore', 'ignore', 'pipe'],
+      stdio: ['ignore', 'pipe', 'pipe'],
     })
+    let stdout = ''
     let stderr = ''
+    child.stdout.setEncoding('utf8')
+    child.stdout.on('data', (chunk: string) => {
+      stdout += chunk
+    })
     child.stderr.setEncoding('utf8')
     child.stderr.on('data', (chunk: string) => {
       stderr += chunk
     })
-    const childClosed = new Promise<void>((resolve, reject) => {
+    const childClosed = new Promise<number | null>((resolve, reject) => {
       child.on('error', reject)
-      child.on('close', () => resolve())
+      child.on('close', (exitCode) => resolve(exitCode))
     })
     let timeout: ReturnType<typeof setTimeout> | undefined
     const requestTimeout = new Promise<never>((_resolve, reject) => {
@@ -129,16 +189,30 @@ async function runCodexRequest(overrides: Partial<SetupState>): Promise<Record<s
     })
 
     try {
-      return await Promise.race([
+      const request = await Promise.race([
         requestReceived,
-        childClosed.then(() => {
-          throw new Error(`Codex exited before sending a Responses API request:\n${stderr}`)
+        childClosed.then((exitCode) => {
+          throw new Error(`Codex exited with code ${exitCode} before sending a ${endpoint} API request:\n${stderr}`)
         }),
         requestTimeout,
       ])
+
+      if (endpoint === 'models') {
+        const exitCode = await Promise.race([childClosed, requestTimeout])
+        return {
+          ...request,
+          codexExitCode: exitCode,
+          codexStderr: stderr,
+          codexStdout: stdout,
+        }
+      }
+
+      return request
     } finally {
       clearTimeout(timeout)
-      child.kill()
+      if (child.exitCode === null && child.signalCode === null) {
+        child.kill()
+      }
       await childClosed
     }
   } finally {
@@ -184,6 +258,30 @@ describe.skipIf(!releaseGateEnabled)('Codex CLI release gate', () => {
       streamIdleTimeoutMs: '120000',
     })))
   })
+
+  it('loads custom provider auth.command configuration', () => {
+    expectConfigLoaded(runDoctor(createGateState({ customProviderUseAuthCommand: true })))
+  })
+
+  it('uses the auth.command output as the Responses API bearer token', async () => {
+    const request = await runCodexRequest({ customProviderUseAuthCommand: true })
+
+    expect(request.capturedAuthorization).toBe('Bearer release-gate-placeholder')
+  }, 15_000)
+
+  it('uses the auth.command output to fetch the remote model catalog', async () => {
+    const request = await runCodexRequest({ customProviderUseAuthCommand: true }, 'models')
+    const catalog = JSON.parse(request.codexStdout as string) as {
+      models?: Array<{ slug?: string }>
+    }
+
+    expect(request.capturedMethod).toBe('GET')
+    expect(request.capturedUrl).toMatch(/^\/v1\/models\?client_version=/)
+    expect(request.capturedAuthorization).toBe('Bearer release-gate-placeholder')
+    expect(request.codexExitCode).toBe(0)
+    expect(request.codexStderr).toBe('')
+    expect(catalog.models?.some((model) => model.slug === modelDiscoveryProbeSlug)).toBe(true)
+  }, 15_000)
 
   it.each(['low', 'medium', 'high', 'xhigh'] as const)(
     'loads model_reasoning_effort=%s',

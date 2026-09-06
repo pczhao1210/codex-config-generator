@@ -79,6 +79,31 @@ describe('buildConfigToml', () => {
     expect(config).toContain('wire_api = "responses"')
   })
 
+  it('uses auth.command instead of env_key for a custom provider when enabled', () => {
+    const state = createValidState({ customProviderUseAuthCommand: true })
+    const config = buildConfigToml(state)
+
+    expect(config).not.toContain('env_key = "CUSTOM_API_KEY"')
+    expect(config).toContain('requires_openai_auth = false')
+    expect(config).toContain('[model_providers.proxy.auth]')
+    expect(config).toContain('command = "printenv"')
+    expect(config).toContain('args = ["CUSTOM_API_KEY"]')
+    expect(config).toContain('timeout_ms = 5000')
+    expect(config).toContain('refresh_interval_ms = 0')
+    expect(buildShellScript(state)).toContain("ENV_NAME_0='CUSTOM_API_KEY'")
+  })
+
+  it('uses a non-interactive PowerShell auth command for a Windows custom provider', () => {
+    const config = buildConfigToml(createValidState({
+      customProviderUseAuthCommand: true,
+      targetOs: 'windows',
+    }))
+
+    expect(config).toContain('command = "powershell.exe"')
+    expect(config).toContain('args = ["-NoProfile", "-NonInteractive", "-Command", "[Console]::Out.Write($env:CUSTOM_API_KEY)"]')
+    expect(config).not.toContain('command = "printenv"')
+  })
+
   it.each(['ollama', 'lmstudio'] as const)('uses a non-reserved provider ID for %s', (localProviderKind) => {
     const config = buildConfigToml(createValidState({
       provider: 'local',

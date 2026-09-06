@@ -88,6 +88,7 @@ export interface SetupState {
   customProviderName: string
   customProviderBaseUrl: string
   customProviderEnvKey: string
+  customProviderUseAuthCommand: boolean
   localProviderKind: LocalProviderKind
   localProviderName: string
   localProviderBaseUrl: string
@@ -431,6 +432,7 @@ export const defaultState: SetupState = {
   customProviderName: 'Custom OpenAI-Compatible Provider',
   customProviderBaseUrl: '',
   customProviderEnvKey: 'CUSTOM_API_KEY',
+  customProviderUseAuthCommand: false,
   localProviderKind: 'ollama',
   localProviderName: 'Ollama',
   localProviderBaseUrl: 'http://localhost:11434/v1',
@@ -939,9 +941,27 @@ export function buildConfigToml(state: SetupState): string {
     lines.push(`[model_providers.${providerId}]`)
     lines.push(`name = ${tomlString(state.customProviderName.trim() || 'Custom OpenAI-Compatible Provider')}`)
     lines.push(`base_url = ${tomlString(state.customProviderBaseUrl.trim())}`)
-    lines.push(`env_key = ${tomlString(state.customProviderEnvKey.trim())}`)
+    if (state.customProviderUseAuthCommand) {
+      lines.push('requires_openai_auth = false')
+    } else {
+      lines.push(`env_key = ${tomlString(state.customProviderEnvKey.trim())}`)
+    }
     lines.push('wire_api = "responses"')
     pushProviderTuning(state, lines)
+
+    if (state.customProviderUseAuthCommand) {
+      lines.push('')
+      lines.push(`[model_providers.${providerId}.auth]`)
+      if (state.targetOs === 'windows') {
+        lines.push('command = "powershell.exe"')
+        lines.push(`args = ["-NoProfile", "-NonInteractive", "-Command", ${tomlString(`[Console]::Out.Write($env:${state.customProviderEnvKey.trim()})`)}]`)
+      } else {
+        lines.push('command = "printenv"')
+        lines.push(`args = [${tomlString(state.customProviderEnvKey.trim())}]`)
+      }
+      lines.push('timeout_ms = 5000')
+      lines.push('refresh_interval_ms = 0')
+    }
   }
 
   if (state.provider === 'local') {

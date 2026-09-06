@@ -12,6 +12,7 @@ Codex Config Generator 是一个静态 Web 应用，用来为 Linux、macOS 和 
 - 生成 Codex CLI 与 Codex App 场景下的配置输出。
 - 默认使用 `gpt-5.6-sol` 与 `pragmatic` personality，并提供可选的 272K 上下文限制。
 - 支持 Azure OpenAI、New API、自定义 OpenAI 兼容 Provider、本地 OpenAI 兼容 Provider。
+- 自定义 Provider 可选用 `auth.command` Bearer 认证，让 Codex 读取远端模型目录。
 - 提供 MCP 预设、自定义 MCP 条目，以及基于环境变量的 HTTP MCP Bearer 认证。
 - 所有输入都只保存在浏览器内存中，不落库。
 - 以纯静态站点方式交付，可部署到 Azure Static Web Apps。
@@ -68,9 +69,25 @@ pnpm test:codex:live
 
 提交前请在本地运行以上检查。发布流程不执行测试，只安装依赖、构建已提交源码并部署生成产物。
 
-`test:codex` 调用已安装的 Codex CLI，验证每个高级参数值和 Provider 类型生成的 `config.toml` 均可加载，并通过本地探针启动 `codex exec`，核对推理强度与回答详细度是否进入真实请求。它要求 `PATH` 中存在 `codex`。
+`test:codex` 调用已安装的 Codex CLI，验证每个高级参数值和 Provider 类型生成的 `config.toml` 均可加载，并通过本地探针核对 Provider 认证、远端模型发现、推理强度与回答详细度是否进入真实请求。它要求 `PATH` 中存在 `codex`。
 
 `test:codex:live` 默认读取 `~/.codex/config.toml` 中的活动模型与 Provider，生成隔离的临时配置，并执行四次最小真实 API 调用，覆盖全部对外开放值。它不会把 API Key 写入 TOML，也不会修改源配置。
+
+## 自定义 Provider `auth.command`
+
+自定义 Provider 默认继续使用 `env_key`。当 Provider 提供远端 `/models` 目录，并希望 Codex 刷新该目录时，可在 Provider 表单中勾选 **使用 auth.command 获取 Bearer token**。生成结果会移除 `env_key`、保持 `requires_openai_auth = false`，并通过嵌套认证配置读取同一个 API Key 环境变量：
+
+```toml
+[model_providers.proxy.auth]
+command = "printenv"
+args = ["CUSTOM_API_KEY"]
+timeout_ms = 5000
+refresh_interval_ms = 0
+```
+
+Linux 与 macOS 使用 `printenv`，Windows 输出改用非交互式 `powershell.exe` 命令。生成脚本仍会把原始 token 持久化到所选环境变量中，请不要添加 `Bearer ` 前缀。`refresh_interval_ms = 0` 表示不定时重跑命令；收到 `401` 后 Codex 仍可重新认证。
+
+远端接口必须返回顶层包含 `models` 数组及完整模型元数据的 Codex 目录结构。当前 Codex 不能把标准 OpenAI 兼容的 `{"object":"list","data":[...]}` 响应作为该目录使用；收到这种结构时会静默回退到内置模型目录。
 
 ## HTTP MCP Bearer Token
 

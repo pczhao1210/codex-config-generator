@@ -92,9 +92,11 @@ const messages = {
     openInstallLink: '打开安装入口',
     windowsInstallNotice: 'Windows 下会同时输出 PowerShell 和 bat。CLI 原生支持仍偏实验性，结果页会额外给出 WSL 指引。',
     step3ApiKeyTitle: 'API Key',
-    currentEnvKey: '当前 Provider 的 env_key',
+    currentEnvKey: 'API Key 环境变量',
     keyInput: 'Key 输入',
     keyPlaceholder: '留空则脚本执行时提示输入',
+    authCommandLabel: '使用 auth.command 获取 Bearer token',
+    authCommandHelp: '启用后不再写入 env_key；Codex 会使用命令取得 token 并请求远端 /models。接口必须返回顶层 models 的 Codex 目录结构；标准 OpenAI 的 object + data 响应会回退到内置目录。',
     providerTitle: 'Provider',
     providerLead: '支持 Azure OpenAI、New API、自定义 OpenAI 兼容 Provider 和本地 OpenAI 兼容 Provider。',
     modelName: '模型名',
@@ -192,9 +194,11 @@ const messages = {
     openInstallLink: 'Open Install Entry',
     windowsInstallNotice: 'Windows outputs both PowerShell and bat. Native CLI support is still experimental, and the result step keeps the WSL guidance visible.',
     step3ApiKeyTitle: 'API Key',
-    currentEnvKey: 'Active Provider env_key',
+    currentEnvKey: 'API Key Environment Variable',
     keyInput: 'Key Input',
     keyPlaceholder: 'Leave empty to prompt during script execution',
+    authCommandLabel: 'Use auth.command For The Bearer Token',
+    authCommandHelp: 'When enabled, env_key is omitted and Codex requests the remote /models catalog with a command-supplied token. The endpoint must return the Codex top-level models schema; standard OpenAI object + data responses fall back to the bundled catalog.',
     providerTitle: 'Provider',
     providerLead: 'Configure Azure OpenAI, New API, a custom OpenAI-compatible provider, or a local OpenAI-compatible provider.',
     modelName: 'Model Name',
@@ -699,6 +703,17 @@ function App() {
                       placeholder="https://proxy.example.com/v1"
                       value={form.customProviderBaseUrl}
                     />
+                  </label>
+                  <label className="switch-row">
+                    <input
+                      checked={form.customProviderUseAuthCommand}
+                      onChange={(event) => updateForm('customProviderUseAuthCommand', event.target.checked)}
+                      type="checkbox"
+                    />
+                    <span>
+                      <strong>{t.authCommandLabel}</strong>
+                      <small>{t.authCommandHelp}</small>
+                    </span>
                   </label>
                 </>
               ) : null}
