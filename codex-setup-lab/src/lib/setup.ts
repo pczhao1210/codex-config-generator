@@ -1145,6 +1145,9 @@ export function buildShellScript(state: SetupState): string {
   lines.push('EOF')
   lines.push('')
   lines.push('echo "Configuration complete. config.toml written to $CONFIG_FILE"')
+  if (state.targetOs === 'linux' && collectPersistentSecrets(state).length > 0) {
+    lines.push('echo "Run in your current terminal: source ~/.bashrc"')
+  }
   lines.push('if [ -t 0 ]; then')
   lines.push("  printf 'Press any key to exit...'")
   lines.push('  read -r -n 1 -s _')

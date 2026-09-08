@@ -118,6 +118,23 @@ describe('buildConfigToml', () => {
   })
 })
 
+describe('buildShellScript', () => {
+  it('prompts Linux users to reload bashrc after writing the configuration', () => {
+    const script = buildShellScript(createValidState({ targetOs: 'linux' }))
+    const reloadPrompt = 'echo "Run in your current terminal: source ~/.bashrc"'
+
+    expect(script).toContain(reloadPrompt)
+    expect(script.indexOf(reloadPrompt)).toBeGreaterThan(script.indexOf('Configuration complete.'))
+    expect(script.indexOf(reloadPrompt)).toBeLessThan(script.indexOf('Press any key to exit...'))
+  })
+
+  it('does not prompt macOS users to reload bashrc', () => {
+    const script = buildShellScript(createValidState({ targetOs: 'macos' }))
+
+    expect(script).not.toContain('source ~/.bashrc')
+  })
+})
+
 describe('Context7 API key', () => {
   const key = 'ctx-secret-value'
   const state = createValidState({
