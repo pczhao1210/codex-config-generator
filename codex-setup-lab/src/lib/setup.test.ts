@@ -330,6 +330,46 @@ describe('HTTP MCP bearer tokens', () => {
   })
 })
 
+describe('Microsoft Web IQ MCP', () => {
+  const key = 'webiq-secret-value'
+  const state = createValidState({
+    selectedMcpPresetIds: ['microsoft-webiq'],
+    presetMcpSecrets: { 'microsoft-webiq': key },
+  })
+
+  it('is available but not selected by default', () => {
+    expect(defaultState.selectedMcpPresetIds).not.toContain('microsoft-webiq')
+    expect(buildConfigToml(createValidState())).not.toContain('api.microsoft.ai')
+  })
+
+  it('sends the API key from the environment in the x-apikey header', () => {
+    const config = buildConfigToml(state)
+
+    expect(parse(config)).toHaveProperty('mcp_servers.microsoft_webiq', {
+      url: 'https://api.microsoft.ai/v3/mcp',
+      env_http_headers: { 'x-apikey': 'WEBIQ_API_KEY' },
+    })
+    expect(config).not.toContain(key)
+    expect(config).not.toContain('bearer_token_env_var')
+  })
+
+  it('persists the key through generated setup scripts', () => {
+    expect(buildShellScript(state)).toContain("='WEBIQ_API_KEY'")
+    expect(buildShellScript(state)).toContain(`='${key}'`)
+
+    const powerShellScript = buildPowerShellScript({ ...state, targetOs: 'windows' })
+    expect(powerShellScript).toContain("= 'WEBIQ_API_KEY'")
+    expect(powerShellScript).toContain(`= '${key}'`)
+  })
+
+  it('prompts for a missing key at script runtime', () => {
+    const script = buildShellScript(createValidState({ selectedMcpPresetIds: ['microsoft-webiq'] }))
+
+    expect(script).toContain("='WEBIQ_API_KEY'")
+    expect(script).toContain('Enter ${ENV_NAME_')
+  })
+})
+
 describe('validateStep', () => {
   it('accepts Codex uint64 boundaries for provider retry and timeout settings', () => {
     const state = createValidState({

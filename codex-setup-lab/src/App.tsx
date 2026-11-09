@@ -11,6 +11,7 @@ import {
   getInstallCatalog,
   getKeyModeLabel,
   getMcpPresets,
+  getPresetSecretEnvVar,
   getProviderEnvDefault,
   getProviderLabels,
   getSelectedPresetSecrets,
@@ -173,7 +174,7 @@ const messages = {
     customLabel: 'Custom',
     step4Title: 'MCP 与可选扩展',
     step4Lead: '这里不做依赖自动探测，只负责把你选择的 MCP 片段与脚本动作写进最终产物。热门模板默认折叠，自定义 MCP 支持多条并行管理。',
-    httpMcpNotice: 'HTTP MCP 使用 url，可选 bearer_token_env_var，不需要 command。若启动时报 missing field `command`，请检查实际运行的 Codex 版本并升级；不要为 HTTP MCP 补一个虚假的 command。',
+    httpMcpNotice: 'HTTP MCP 使用 url，可选 bearer_token_env_var 或 env_http_headers，不需要 command。若启动时报 missing field `command`，请检查实际运行的 Codex 版本并升级；不要为 HTTP MCP 补一个虚假的 command。',
     tuiSettings: 'TUI 终端显示（可选）',
     tuiSettingsLead: '分别自定义终端标题、状态栏与颜色；默认不写入 [tui]，保留 Codex 默认行为。',
     tuiTerminalTitle: '自定义终端标题',
@@ -291,7 +292,7 @@ const messages = {
     customLabel: 'Custom',
     step4Title: 'MCP And Optional Extensions',
     step4Lead: 'This page does not auto-detect dependencies. It only writes the selected MCP blocks and script actions into the final output. Popular templates stay compact, and custom MCP entries can be managed in parallel.',
-    httpMcpNotice: 'HTTP MCP uses url and optionally bearer_token_env_var, not command. If startup reports missing field `command`, check and upgrade the Codex binary actually being run. Do not add a dummy command to an HTTP server.',
+    httpMcpNotice: 'HTTP MCP uses url and optionally bearer_token_env_var or env_http_headers, not command. If startup reports missing field `command`, check and upgrade the Codex binary actually being run. Do not add a dummy command to an HTTP server.',
     tuiSettings: 'TUI Terminal Display (Optional)',
     tuiSettingsLead: 'Customize the terminal title, status line, and colors independently. No [tui] block is written by default.',
     tuiTerminalTitle: 'Customize Terminal Title',
@@ -1128,8 +1129,7 @@ function App() {
                   ) : null}
                   {!preset.optionalSecret || form.enabledPresetSecrets[preset.id] === true ? (
                     <div className="stack gap-sm">
-                      {preset.bearerTokenEnvVar ? renderCommandLine(`${preset.id}-bearer-env`, preset.bearerTokenEnvVar) : null}
-                      {preset.stdioSecretEnvVar ? renderCommandLine(`${preset.id}-stdio-env`, preset.stdioSecretEnvVar) : null}
+                      {renderCommandLine(`${preset.id}-secret-env`, getPresetSecretEnvVar(preset) ?? '')}
                       <label className="field">
                         <span>{preset.secretFieldLabel ?? t.secretFallback}</span>
                         <input

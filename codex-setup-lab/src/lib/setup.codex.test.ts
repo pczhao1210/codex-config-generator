@@ -252,6 +252,10 @@ describe.skipIf(!releaseGateEnabled)('Codex CLI release gate', () => {
     })))
   })
 
+  it('loads the Microsoft Web IQ env_http_headers preset', () => {
+    expectConfigLoaded(runDoctor(createGateState({ selectedMcpPresetIds: ['microsoft-webiq'] })))
+  })
+
   it.each([
     ['azure', {
       provider: 'azure',

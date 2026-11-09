@@ -95,9 +95,19 @@ Linux 与 macOS 使用 `printenv`，Windows 输出改用非交互式 `powershell
 
 当配置为 `bearer_token_env_var = "MCP_TOKEN"` 时，请填写不带 `Bearer ` 前缀的原始 token。Codex 会从自身进程环境读取 `MCP_TOKEN` 并自动添加认证方案。生成脚本写入新变量后，需要重新启动终端、Codex App 或 VS Code。
 
+可选的 **Microsoft Web IQ** 预设默认不勾选。它的 API Key 放在 `x-apikey` 请求头中，而不是 `Authorization` 请求头，因此生成器会写入：
+
+```toml
+[mcp_servers.microsoft_webiq]
+url = "https://api.microsoft.ai/v3/mcp"
+env_http_headers = { "x-apikey" = "WEBIQ_API_KEY" }
+```
+
+请在 [Web IQ 门户](https://webiq.microsoft.ai/profiles) 创建 API Key。安装脚本会持久化 `WEBIQ_API_KEY`，key 不会写入 `config.toml`。Codex 能看到哪些工具，取决于你的 Web IQ 账户开通的服务。参见 [Web IQ MCP 文档](https://learn.microsoft.com/web-iq/integrations/mcp)。
+
 ## MCP 兼容性与更新
 
-HTTP MCP 使用 `url` 和可选的 `bearer_token_env_var`；只有本地 stdio MCP 才需要 `command`。不要给远程 HTTP MCP 添加虚假的 command。
+HTTP MCP 使用 `url` 和可选的 `bearer_token_env_var` 或 `env_http_headers`；只有本地 stdio MCP 才需要 `command`。不要给远程 HTTP MCP 添加虚假的 command。
 
 若启动时报 `missing field command in mcp_servers.<name>`，请先确认实际运行的可执行文件。Codex CLI 0.41.0 对 URL 配置可复现这一报错，并非新版 HTTP 配置增加了 command 要求。请通过原安装方式更新：
 

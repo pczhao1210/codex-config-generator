@@ -67,6 +67,7 @@ export interface McpPreset {
   url?: string
   startupTimeoutSec?: number
   bearerTokenEnvVar?: string
+  envHttpHeader?: { name: string; envVar: string }
   secretFieldLabel?: string
   secretHelpText?: string
   stdioSecretEnvVar?: string
@@ -237,6 +238,16 @@ const copy = {
         url: 'https://learn.microsoft.com/api/mcp',
       },
       {
+        id: 'microsoft-webiq',
+        label: 'Microsoft Web IQ',
+        description: '接入 Microsoft Web IQ 的网页、新闻、图片、视频搜索与网页读取工具。',
+        protocol: 'http',
+        url: 'https://api.microsoft.ai/v3/mcp',
+        envHttpHeader: { name: 'x-apikey', envVar: 'WEBIQ_API_KEY' },
+        secretFieldLabel: 'Web IQ API Key',
+        secretHelpText: '在 Web IQ 门户（webiq.microsoft.ai/profiles）创建 API Key。Codex 通过 x-apikey 请求头发送，key 不会写入 config.toml；留空则在脚本运行时提示输入。',
+      },
+      {
         id: 'tavily',
         label: 'Tavily / Travily Search',
         description: '为外部搜索与研究流程提供检索工具。',
@@ -386,6 +397,16 @@ const copy = {
         description: 'Connect to the official Microsoft Learn MCP for current docs and code samples.',
         protocol: 'http',
         url: 'https://learn.microsoft.com/api/mcp',
+      },
+      {
+        id: 'microsoft-webiq',
+        label: 'Microsoft Web IQ',
+        description: 'Add Microsoft Web IQ web, news, image, and video search plus webpage browsing.',
+        protocol: 'http',
+        url: 'https://api.microsoft.ai/v3/mcp',
+        envHttpHeader: { name: 'x-apikey', envVar: 'WEBIQ_API_KEY' },
+        secretFieldLabel: 'Web IQ API Key',
+        secretHelpText: 'Create an API key in the Web IQ portal (webiq.microsoft.ai/profiles). Codex sends it in the x-apikey header, and the key is not written to config.toml. Leave it empty to be prompted when the script runs.',
       },
       {
         id: 'tavily',
@@ -587,9 +608,13 @@ export function setActiveProviderEnvVar(state: SetupState, value: string): Setup
   return { ...state, localProviderEnvKey: value }
 }
 
+export function getPresetSecretEnvVar(preset: McpPreset): string | undefined {
+  return preset.bearerTokenEnvVar ?? preset.envHttpHeader?.envVar ?? preset.stdioSecretEnvVar
+}
+
 export function getSelectedPresetSecrets(state: SetupState, locale: Locale): McpPreset[] {
   const selectedIds = new Set(state.selectedMcpPresetIds)
-  return getMcpPresets(locale).filter((preset) => selectedIds.has(preset.id) && (preset.bearerTokenEnvVar || preset.stdioSecretEnvVar))
+  return getMcpPresets(locale).filter((preset) => selectedIds.has(preset.id) && getPresetSecretEnvVar(preset))
 }
 
 function isPresetSecretEnabled(state: SetupState, preset: McpPreset): boolean {
@@ -916,6 +941,9 @@ function pushPresetMcp(preset: McpPreset, state: SetupState, lines: string[]): v
     if (preset.bearerTokenEnvVar) {
       lines.push(`bearer_token_env_var = ${tomlString(preset.bearerTokenEnvVar)}`)
     }
+    if (preset.envHttpHeader) {
+      lines.push(`env_http_headers = { ${tomlString(preset.envHttpHeader.name)} = ${tomlString(preset.envHttpHeader.envVar)} }`)
+    }
   }
 
   if (preset.startupTimeoutSec) {
@@ -1095,7 +1123,7 @@ function collectPersistentSecrets(state: SetupState): SecretPair[] {
     ...getSelectedPresetSecrets(state, 'en')
       .filter((preset) => isPresetSecretEnabled(state, preset))
       .map((preset) => ({
-        name: preset.bearerTokenEnvVar ?? preset.stdioSecretEnvVar ?? '',
+        name: getPresetSecretEnvVar(preset) ?? '',
         value: state.presetMcpSecrets[preset.id] ?? '',
       })),
     ...state.customMcps

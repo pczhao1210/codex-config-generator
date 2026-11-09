@@ -95,9 +95,19 @@ The remote endpoint must return Codex's model catalog schema with a top-level `m
 
 For `bearer_token_env_var = "MCP_TOKEN"`, enter the raw token without the `Bearer ` prefix. Codex reads `MCP_TOKEN` from its process environment and adds the authorization scheme automatically. Restart the terminal, Codex App, or VS Code after the generated setup script persists a new variable.
 
+The optional **Microsoft Web IQ** preset is not selected by default. Its API key goes in the `x-apikey` header rather than an `Authorization` header, so the generator writes:
+
+```toml
+[mcp_servers.microsoft_webiq]
+url = "https://api.microsoft.ai/v3/mcp"
+env_http_headers = { "x-apikey" = "WEBIQ_API_KEY" }
+```
+
+Create the key in the [Web IQ portal](https://webiq.microsoft.ai/profiles). The setup script persists `WEBIQ_API_KEY`; the key is never written to `config.toml`. The tools Codex can see depend on the services enabled for your Web IQ account. See the [Web IQ MCP documentation](https://learn.microsoft.com/web-iq/integrations/mcp).
+
 ## MCP Compatibility And Updates
 
-HTTP MCP servers use `url` and optionally `bearer_token_env_var`; only local stdio servers require `command`. Do not add a dummy command to a remote HTTP server.
+HTTP MCP servers use `url` and optionally `bearer_token_env_var` or `env_http_headers`; only local stdio servers require `command`. Do not add a dummy command to a remote HTTP server.
 
 If startup reports `missing field command in mcp_servers.<name>`, check the executable being run. This error is reproducible with Codex CLI 0.41.0 for URL-based servers; it is not a new HTTP configuration requirement. Update using the same installation method:
 
