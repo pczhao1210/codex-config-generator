@@ -541,6 +541,116 @@
   border-top: 1px solid var(--panel-border);
 }
 
+.tui-picker {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.tui-picker legend {
+  padding: 0;
+  color: var(--text-strong);
+  font-size: 14px;
+}
+
+.tui-picker__count {
+  color: var(--text-subtle);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.tui-picker__list {
+  max-height: 430px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  padding: 3px;
+  border: 1px solid var(--panel-border);
+  border-radius: 14px;
+  background: #080808;
+}
+
+.tui-choice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 10px;
+}
+
+.tui-choice.is-selected {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.tui-choice__label {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  padding: 12px 8px;
+  cursor: pointer;
+}
+
+.tui-choice__label input {
+  margin: 0;
+}
+
+.tui-choice__label strong,
+.tui-choice__label code {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.tui-choice__label strong {
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.tui-choice__label code {
+  margin-top: 4px;
+  color: var(--text-subtle);
+  font-size: 11px;
+}
+
+.tui-choice__order {
+  margin-right: 6px;
+  color: var(--text-subtle);
+  font-family: var(--mono);
+}
+
+.tui-choice__actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 2px;
+  padding-right: 6px;
+}
+
+.tui-choice__actions button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-strong);
+  cursor: pointer;
+}
+
+.tui-choice__actions button:hover:not(:disabled) {
+  border-color: var(--panel-border);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.tui-choice__actions button:focus-visible,
+.tui-choice__label input:focus-visible {
+  outline: 2px solid var(--text-strong);
+  outline-offset: 2px;
+}
+
 .secret-toggle {
   margin-top: 14px;
 }

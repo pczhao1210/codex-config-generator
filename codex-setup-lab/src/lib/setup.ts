@@ -8,7 +8,28 @@ export type ModelReasoningEffort = 'provider-default' | 'low' | 'medium' | 'high
 export type ModelVerbosity = 'provider-default' | 'low' | 'medium' | 'high'
 export type ApprovalPolicy = 'codex-default' | 'on-request' | 'never'
 export type SandboxMode = 'codex-default' | 'read-only' | 'workspace-write' | 'danger-full-access'
+export type TuiColorMode = 'codex-default' | 'enabled' | 'disabled'
 export type Locale = 'zh' | 'en'
+
+export const terminalTitleItems = [
+  'app-name', 'project-name', 'current-dir', 'activity', 'run-state',
+  'thread-name', 'thread-title', 'git-branch', 'context-remaining', 'context-used',
+  'five-hour-limit', 'weekly-limit', 'codex-version', 'used-tokens',
+  'total-input-tokens', 'total-output-tokens', 'thread-credits', 'estimated-thread-cost',
+  'thread-id', 'fast-mode', 'daybreak', 'model', 'model-with-reasoning', 'reasoning', 'task-progress',
+] as const
+
+export const statusLineItems = [
+  'model', 'model-with-reasoning', 'reasoning', 'current-dir', 'project-name',
+  'hostname', 'git-branch', 'pull-request-number', 'branch-changes', 'run-state',
+  'permissions', 'approval-mode', 'context-remaining', 'context-used', 'five-hour-limit',
+  'weekly-limit', 'codex-version', 'context-window-size', 'used-tokens',
+  'total-input-tokens', 'total-output-tokens', 'thread-credits', 'estimated-thread-cost',
+  'thread-id', 'fast-mode', 'daybreak', 'raw-output', 'thread-name', 'thread-title',
+  'workspace-headline', 'task-progress', 'profile', 'provider',
+] as const
+
+export type TuiItemId = (typeof terminalTitleItems)[number] | (typeof statusLineItems)[number]
 
 export interface LinkCard {
   title: string
@@ -79,6 +100,11 @@ export interface SetupState {
   requestMaxRetries: string
   streamMaxRetries: string
   streamIdleTimeoutMs: string
+  tuiTerminalTitleEnabled: boolean
+  tuiTerminalTitle: TuiItemId[]
+  tuiStatusLineEnabled: boolean
+  tuiStatusLine: TuiItemId[]
+  tuiStatusLineUseColors: TuiColorMode
   apiKeyEnvVar: string
   apiKeyValue: string
   azureBaseUrl: string
@@ -423,6 +449,11 @@ export const defaultState: SetupState = {
   requestMaxRetries: '',
   streamMaxRetries: '',
   streamIdleTimeoutMs: '',
+  tuiTerminalTitleEnabled: false,
+  tuiTerminalTitle: ['thread-name', 'activity', 'project-name', 'context-remaining', 'total-input-tokens', 'total-output-tokens', 'model-with-reasoning'],
+  tuiStatusLineEnabled: false,
+  tuiStatusLine: ['model-with-reasoning', 'current-dir', 'thread-name', 'branch-changes', 'permissions', 'context-remaining', 'used-tokens'],
+  tuiStatusLineUseColors: 'codex-default',
   apiKeyEnvVar: 'AZURE_OPENAI_API_KEY',
   apiKeyValue: '',
   azureBaseUrl: 'https://YOUR_RESOURCE_NAME.openai.azure.com/openai/v1',
@@ -655,6 +686,21 @@ export function validateStep(stepIndex: number, state: SetupState, locale: Local
   }
 
   if (stepIndex === 3) {
+    for (const [enabled, value, allowedItems, field] of [
+      [state.tuiTerminalTitleEnabled, state.tuiTerminalTitle, terminalTitleItems, 'terminal_title'],
+      [state.tuiStatusLineEnabled, state.tuiStatusLine, statusLineItems, 'status_line'],
+    ] as const) {
+      if (enabled) {
+        const allowed = new Set<string>(allowedItems)
+        const invalidItems = value.filter((item) => !allowed.has(item))
+        if (invalidItems.length > 0) {
+          return locale === 'zh'
+            ? `tui.${field} 包含不支持的字段：${invalidItems.join(', ')}。请使用可用字段中的标识。`
+            : `tui.${field} contains unsupported items: ${invalidItems.join(', ')}. Use identifiers from the available items.`
+        }
+      }
+    }
+
     const serverIds = new Set(state.selectedMcpPresetIds.map(slugify))
 
     for (const entry of state.customMcps) {
@@ -996,6 +1042,19 @@ export function buildConfigToml(state: SetupState): string {
     lines.push('')
     pushCustomMcp(entry, lines)
   })
+
+  if (state.tuiTerminalTitleEnabled || state.tuiStatusLineEnabled || state.tuiStatusLineUseColors !== 'codex-default') {
+    lines.push('', '[tui]')
+    if (state.tuiTerminalTitleEnabled) {
+      lines.push(`terminal_title = [${state.tuiTerminalTitle.map(tomlString).join(', ')}]`)
+    }
+    if (state.tuiStatusLineEnabled) {
+      lines.push(`status_line = [${state.tuiStatusLine.map(tomlString).join(', ')}]`)
+    }
+    if (state.tuiStatusLineUseColors !== 'codex-default') {
+      lines.push(`status_line_use_colors = ${state.tuiStatusLineUseColors === 'enabled'}`)
+    }
+  }
 
   return `${lines.join('\n').trim()}\n`
 }

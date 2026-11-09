@@ -4,7 +4,14 @@ import { createServer } from 'node:http'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { buildConfigToml, defaultState, type SetupState } from './setup'
+import {
+  buildConfigToml,
+  createCustomMcpEntry,
+  defaultState,
+  statusLineItems,
+  terminalTitleItems,
+  type SetupState,
+} from './setup'
 
 interface DoctorCheck {
   id: string
@@ -223,6 +230,28 @@ async function runCodexRequest(
 }
 
 describe.skipIf(!releaseGateEnabled)('Codex CLI release gate', () => {
+  it.each([
+    ['all terminal title items', { tuiTerminalTitleEnabled: true, tuiTerminalTitle: [...terminalTitleItems] }],
+    ['all status line items', { tuiStatusLineEnabled: true, tuiStatusLine: [...statusLineItems] }],
+    ['empty lists', { tuiTerminalTitleEnabled: true, tuiTerminalTitle: [], tuiStatusLineEnabled: true, tuiStatusLine: [] }],
+    ['colors enabled', { tuiStatusLineUseColors: 'enabled' }],
+    ['colors disabled', { tuiStatusLineUseColors: 'disabled' }],
+  ] satisfies Array<[string, Partial<SetupState>]>)('loads TUI %s', (_name, overrides) => {
+    expectConfigLoaded(runDoctor(createGateState(overrides)))
+  })
+
+  it('loads HTTP MCP without a command', () => {
+    expectConfigLoaded(runDoctor(createGateState({
+      customMcps: [{
+        ...createCustomMcpEntry(1),
+        name: 'bing-search',
+        protocol: 'http',
+        url: 'http://127.0.0.1:9/mcp',
+        bearerTokenEnvVar: 'CUSTOM_API_KEY',
+      }],
+    })))
+  })
+
   it.each([
     ['azure', {
       provider: 'azure',

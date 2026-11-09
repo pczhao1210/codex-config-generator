@@ -18,6 +18,8 @@ import {
   getSummaryItems,
   osLabels,
   setActiveProviderEnvVar,
+  statusLineItems,
+  terminalTitleItems,
   validateStep,
   type Artifact,
   type CustomProviderPreset,
@@ -29,6 +31,7 @@ import {
   type ProviderId,
   type SetupState,
   type TargetOs,
+  type TuiItemId,
 } from './lib/setup'
 
 const localProviderDefaults: Record<Exclude<LocalProviderKind, 'custom'>, { name: string; baseUrl: string; envKey: string }> = {
@@ -58,6 +61,44 @@ const customProviderDefaults: Record<CustomProviderPreset, { id: string; name: s
 }
 
 const githubRepoUrl = 'https://github.com/pczhao1210/codex-config-generator'
+
+const tuiItemLabels: Record<TuiItemId, Record<Locale, string>> = {
+  'app-name': { zh: '应用名称', en: 'Application name' },
+  'project-name': { zh: '项目名称', en: 'Project name' },
+  'current-dir': { zh: '当前工作目录', en: 'Working directory' },
+  activity: { zh: '工作动画与待确认提示', en: 'Activity indicator and action requests' },
+  'run-state': { zh: '运行状态（就绪、工作中等）', en: 'Run state (ready, working, etc.)' },
+  'thread-name': { zh: '对话名称', en: 'Conversation name' },
+  'thread-title': { zh: '对话标题（无名称时显示 ID）', en: 'Conversation title or ID' },
+  'git-branch': { zh: 'Git 分支名', en: 'Git branch name' },
+  'context-remaining': { zh: '剩余上下文百分比', en: 'Context remaining (%)' },
+  'context-used': { zh: '已用上下文百分比', en: 'Context used (%)' },
+  'five-hour-limit': { zh: '5 小时额度剩余量', en: 'Remaining five-hour allowance' },
+  'weekly-limit': { zh: '每周额度剩余量', en: 'Remaining weekly allowance' },
+  'codex-version': { zh: 'Codex 版本', en: 'Codex version' },
+  'used-tokens': { zh: '本次会话已用 Token', en: 'Tokens used in this session' },
+  'total-input-tokens': { zh: '累计输入 Token', en: 'Total input tokens' },
+  'total-output-tokens': { zh: '累计输出 Token', en: 'Total output tokens' },
+  'thread-credits': { zh: '当前对话预估积分（企业版）', en: 'Estimated conversation credits (Enterprise)' },
+  'estimated-thread-cost': { zh: '当前对话预估费用（企业版）', en: 'Estimated conversation cost (Enterprise)' },
+  'thread-id': { zh: '对话 ID', en: 'Conversation ID' },
+  'fast-mode': { zh: '快速模式状态', en: 'Fast mode status' },
+  daybreak: { zh: 'Daybreak 功能状态', en: 'Daybreak status' },
+  model: { zh: '模型名称', en: 'Model name' },
+  'model-with-reasoning': { zh: '模型与推理强度', en: 'Model and reasoning effort' },
+  reasoning: { zh: '推理强度', en: 'Reasoning effort' },
+  'task-progress': { zh: '任务清单进度', en: 'Task checklist progress' },
+  hostname: { zh: '主机名', en: 'Host name' },
+  'pull-request-number': { zh: '当前分支的 PR 编号', en: 'Pull request number' },
+  'branch-changes': { zh: '当前分支的变更统计', en: 'Branch change statistics' },
+  permissions: { zh: '权限与沙箱模式', en: 'Permissions and sandbox mode' },
+  'approval-mode': { zh: '命令审批模式', en: 'Command approval mode' },
+  'context-window-size': { zh: '上下文窗口大小', en: 'Context window size' },
+  'raw-output': { zh: '原始输出模式状态', en: 'Raw output mode status' },
+  'workspace-headline': { zh: '工作区通知摘要', en: 'Workspace notification headline' },
+  profile: { zh: '当前配置 Profile', en: 'Active configuration profile' },
+  provider: { zh: '当前模型 Provider', en: 'Active model provider' },
+}
 
 const messages = {
   zh: {
@@ -91,6 +132,7 @@ const messages = {
     viewOfficialDocs: '查看官方文档',
     openInstallLink: '打开安装入口',
     windowsInstallNotice: 'Windows 下会同时输出 PowerShell 和 bat。CLI 原生支持仍偏实验性，结果页会额外给出 WSL 指引。',
+    cliVersionNotice: '配置面向新版 Codex。请先运行 codex --version；npm 安装可用 npm install -g @openai/codex@latest 更新。其他安装方式请使用原安装工具更新，并确认 PATH 中没有旧版 codex。',
     step3ApiKeyTitle: 'API Key',
     currentEnvKey: 'API Key 环境变量',
     keyInput: 'Key 输入',
@@ -131,6 +173,21 @@ const messages = {
     customLabel: 'Custom',
     step4Title: 'MCP 与可选扩展',
     step4Lead: '这里不做依赖自动探测，只负责把你选择的 MCP 片段与脚本动作写进最终产物。热门模板默认折叠，自定义 MCP 支持多条并行管理。',
+    httpMcpNotice: 'HTTP MCP 使用 url，可选 bearer_token_env_var，不需要 command。若启动时报 missing field `command`，请检查实际运行的 Codex 版本并升级；不要为 HTTP MCP 补一个虚假的 command。',
+    tuiSettings: 'TUI 终端显示（可选）',
+    tuiSettingsLead: '分别自定义终端标题、状态栏与颜色；默认不写入 [tui]，保留 Codex 默认行为。',
+    tuiTerminalTitle: '自定义终端标题',
+    tuiStatusLine: '自定义状态栏',
+    tuiItemsHelp: '勾选需要显示的内容。选中项置顶，按编号顺序显示，可用箭头调整。部分内容仅在 Git 或额度数据可用时显示。',
+    tuiSelectedCount: (selected: number, total: number) => `已选 ${selected} / ${total} 项`,
+    tuiEmptySelection: '未选择任何项目，将写入 [] 并关闭对应显示。取消上方的自定义勾选可恢复 Codex 默认值。',
+    tuiMoveUp: '上移',
+    tuiMoveDown: '下移',
+    tuiColors: '自定义状态栏颜色',
+    tuiColorsHelp: '不勾选则使用 Codex 默认颜色设置。',
+    tuiUseColors: '启用彩色状态栏',
+    tuiUseColorsHelp: '取消勾选会明确写入 status_line_use_colors = false。',
+    tuiStateNotice: '这些选项只影响 CLI 终端界面，不改变模型能力。screen_reader_detection_done 与 model_availability_nux 是 Codex 自动维护的状态，不生成到配置中。新增字段需使用支持它们的新版 Codex。',
     secretFallback: '访问凭证',
     secretPlaceholder: '留空则由生成脚本在运行时提示输入',
     stdioSecretPlaceholder: '留空则不写入该 MCP 的 env 配置',
@@ -193,6 +250,7 @@ const messages = {
     viewOfficialDocs: 'Open Official Docs',
     openInstallLink: 'Open Install Entry',
     windowsInstallNotice: 'Windows outputs both PowerShell and bat. Native CLI support is still experimental, and the result step keeps the WSL guidance visible.',
+    cliVersionNotice: 'Generated configuration targets modern Codex. Check codex --version first. For npm installations, update with npm install -g @openai/codex@latest; otherwise use the original installer. Check PATH for older codex binaries.',
     step3ApiKeyTitle: 'API Key',
     currentEnvKey: 'API Key Environment Variable',
     keyInput: 'Key Input',
@@ -233,6 +291,21 @@ const messages = {
     customLabel: 'Custom',
     step4Title: 'MCP And Optional Extensions',
     step4Lead: 'This page does not auto-detect dependencies. It only writes the selected MCP blocks and script actions into the final output. Popular templates stay compact, and custom MCP entries can be managed in parallel.',
+    httpMcpNotice: 'HTTP MCP uses url and optionally bearer_token_env_var, not command. If startup reports missing field `command`, check and upgrade the Codex binary actually being run. Do not add a dummy command to an HTTP server.',
+    tuiSettings: 'TUI Terminal Display (Optional)',
+    tuiSettingsLead: 'Customize the terminal title, status line, and colors independently. No [tui] block is written by default.',
+    tuiTerminalTitle: 'Customize Terminal Title',
+    tuiStatusLine: 'Customize Status Line',
+    tuiItemsHelp: 'Check the content to display. Selected items appear first in numbered display order; use the arrows to reorder. Some items require Git or usage data.',
+    tuiSelectedCount: (selected: number, total: number) => `${selected} / ${total} selected`,
+    tuiEmptySelection: 'No items selected: [] will disable this display. Uncheck customization above to restore the Codex default.',
+    tuiMoveUp: 'Move up',
+    tuiMoveDown: 'Move down',
+    tuiColors: 'Customize Status Line Colors',
+    tuiColorsHelp: 'Leave unchecked to use the Codex default color setting.',
+    tuiUseColors: 'Enable Status Line Colors',
+    tuiUseColorsHelp: 'Uncheck to explicitly write status_line_use_colors = false.',
+    tuiStateNotice: 'These options affect the CLI terminal UI, not model capabilities. screen_reader_detection_done and model_availability_nux are Codex-managed state and are not generated. Newly added items require a recent Codex version that supports them.',
     secretFallback: 'Credential',
     secretPlaceholder: 'Leave empty to prompt when the generated script runs',
     stdioSecretPlaceholder: 'Leave empty to omit this MCP env value',
@@ -265,6 +338,87 @@ const messages = {
     currentArtifactCopyLabel: 'Current artifact',
   },
 } as const
+
+interface TuiItemPickerProps {
+  id: string
+  title: string
+  locale: Locale
+  availableItems: readonly TuiItemId[]
+  selectedItems: readonly TuiItemId[]
+  onChange: (items: TuiItemId[]) => void
+}
+
+function TuiItemPicker({ id, title, locale, availableItems, selectedItems, onChange }: TuiItemPickerProps) {
+  const t = messages[locale]
+  const orderedItems = [...selectedItems, ...availableItems.filter((item) => !selectedItems.includes(item))]
+  const moveItem = (index: number, direction: -1 | 1) => {
+    const reordered = [...selectedItems]
+    const destination = index + direction
+    const [item] = reordered.splice(index, 1)
+    reordered.splice(destination, 0, item)
+    onChange(reordered)
+  }
+
+  return (
+    <fieldset className="tui-picker" aria-describedby={`${id}-help`}>
+      <legend>{title}</legend>
+      <p className="field-help" id={`${id}-help`}>{t.tuiItemsHelp}</p>
+      <p className="tui-picker__count" aria-live="polite">
+        {t.tuiSelectedCount(selectedItems.length, availableItems.length)}
+      </p>
+      {selectedItems.length === 0 ? <p className="field-help">{t.tuiEmptySelection}</p> : null}
+      <div className="tui-picker__list">
+        {orderedItems.map((item) => {
+          const index = selectedItems.indexOf(item)
+          const selected = index !== -1
+          const label = tuiItemLabels[item][locale]
+          return (
+            <div className={`tui-choice ${selected ? 'is-selected' : ''}`} key={item}>
+              <label className="tui-choice__label">
+                <input
+                  aria-label={label}
+                  checked={selected}
+                  onChange={(event) => onChange(event.target.checked
+                    ? [...selectedItems, item]
+                    : selectedItems.filter((selectedItem) => selectedItem !== item))}
+                  type="checkbox"
+                />
+                <span>
+                  <strong>
+                    {selected ? <span className="tui-choice__order" aria-hidden="true">{index + 1}.</span> : null}
+                    {label}
+                  </strong>
+                  <code>{item}</code>
+                </span>
+              </label>
+              {selected ? (
+                <div className="tui-choice__actions">
+                  {([-1, 1] as const).map((direction) => {
+                    const action = direction === -1 ? t.tuiMoveUp : t.tuiMoveDown
+                    return (
+                      <button
+                        aria-label={`${action}: ${label}`}
+                        disabled={direction === -1 ? index === 0 : index === selectedItems.length - 1}
+                        key={direction}
+                        onClick={() => moveItem(index, direction)}
+                        title={`${action}: ${label}`}
+                        type="button"
+                      >
+                        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                          <path d={direction === -1 ? 'M4 10l4-4 4 4' : 'M4 6l4 4 4-4'} />
+                        </svg>
+                      </button>
+                    )
+                  })}
+                </div>
+              ) : null}
+            </div>
+          )
+        })}
+      </div>
+    </fieldset>
+  )
+}
 
 function App() {
   const [locale, setLocale] = useState<Locale>(() => detectBrowserLocale())
@@ -582,6 +736,7 @@ function App() {
           </div>
 
           {form.targetOs === 'windows' ? <div className="notice-box">{t.windowsInstallNotice}</div> : null}
+          <div className="notice-box">{t.cliVersionNotice}</div>
         </section>
       )
     }
@@ -867,6 +1022,75 @@ function App() {
             <h2>{t.step4Title}</h2>
             <p className="lede">{t.step4Lead}</p>
           </div>
+
+          <details className="advanced-panel">
+            <summary>
+              <span>{t.tuiSettings}</span>
+              <small>{t.tuiSettingsLead}</small>
+            </summary>
+            <div className="advanced-panel__body stack gap-md">
+              <p className="field-help">{t.tuiStateNotice}</p>
+              <div className="form-grid form-grid--two">
+                {([
+                  ['tuiTerminalTitleEnabled', 'tuiTerminalTitle', t.tuiTerminalTitle, 'terminal_title', terminalTitleItems],
+                  ['tuiStatusLineEnabled', 'tuiStatusLine', t.tuiStatusLine, 'status_line', statusLineItems],
+                ] as const).map(([enabledKey, itemsKey, label, configKey, availableItems]) => (
+                  <div className="stack gap-sm" key={itemsKey}>
+                    <label className="switch-row">
+                      <input
+                        checked={form[enabledKey]}
+                        onChange={(event) => updateForm(enabledKey, event.target.checked)}
+                        type="checkbox"
+                      />
+                      <span>
+                        <strong>{label}</strong>
+                        <small>tui.{configKey}</small>
+                      </span>
+                    </label>
+                    {form[enabledKey] ? (
+                      <TuiItemPicker
+                        availableItems={availableItems}
+                        id={itemsKey}
+                        locale={locale}
+                        onChange={(items) => updateForm(itemsKey, items)}
+                        selectedItems={form[itemsKey]}
+                        title={label}
+                      />
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+              <label className="switch-row">
+                <input
+                  checked={form.tuiStatusLineUseColors !== 'codex-default'}
+                  onChange={(event) => updateForm('tuiStatusLineUseColors', event.target.checked ? 'enabled' : 'codex-default')}
+                  type="checkbox"
+                />
+                <span>
+                  <strong>{t.tuiColors}</strong>
+                  <small>{t.tuiColorsHelp}</small>
+                </span>
+              </label>
+              {form.tuiStatusLineUseColors !== 'codex-default' ? (
+                <label className="switch-row">
+                  <input
+                    checked={form.tuiStatusLineUseColors === 'enabled'}
+                    onChange={(event) => updateForm('tuiStatusLineUseColors', event.target.checked ? 'enabled' : 'disabled')}
+                    type="checkbox"
+                  />
+                  <span>
+                    <strong>{t.tuiUseColors}</strong>
+                    <small>{t.tuiUseColorsHelp}</small>
+                  </span>
+                </label>
+              ) : null}
+            </div>
+          </details>
+
+          {mcpPresets.some((preset) => preset.protocol === 'http' && form.selectedMcpPresetIds.includes(preset.id))
+            || form.customMcps.some((entry) => entry.protocol === 'http')
+            ? <div className="notice-box">{t.httpMcpNotice}</div>
+            : null}
 
           <div className="preset-grid">
             {mcpPresets.map((preset) => {
