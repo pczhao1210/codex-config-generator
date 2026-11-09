@@ -147,3 +147,13 @@ status_line_use_colors = true
 
 - `AZURE_RESOURCE_GROUP`
 - `AZURE_STATIC_WEB_APPS_ENVIRONMENT`
+
+### 查看线上部署版本
+
+每次构建都会生成 `version.json`，记录 commit、分支、构建时间；GitHub Actions 构建还会附带 workflow 运行链接。线上、`pnpm dev` 与 `pnpm preview` 都可通过 `/version` 读取同一份不缓存的 JSON：
+
+```bash
+curl https://codex-config.thingsbud.com/version
+```
+
+如果 `commit` 与 `main` 的最新提交不一致，说明最新部署尚未完成或已失败。

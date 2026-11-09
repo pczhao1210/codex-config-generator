@@ -1,0 +1,17 @@
+{
+  "routes": [
+    {
+      "route": "/version",
+      "rewrite": "/version.json",
+      "headers": {
+        "Cache-Control": "no-store"
+      }
+    },
+    {
+      "route": "/version.json",
+      "headers": {
+        "Cache-Control": "no-store"
+      }
+    }
+  ]
+}

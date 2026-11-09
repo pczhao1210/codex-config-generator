@@ -147,3 +147,13 @@ Optional environment variables:
 
 - `AZURE_RESOURCE_GROUP`
 - `AZURE_STATIC_WEB_APPS_ENVIRONMENT`
+
+### Check The Deployed Version
+
+Each build writes `version.json` with the commit, branch, build time, and, for GitHub Actions builds, the workflow run link. `/version` returns the same JSON without caching, in production, `pnpm dev`, and `pnpm preview`:
+
+```bash
+curl https://codex-config.thingsbud.com/version
+```
+
+If `commit` does not match the latest commit on `main`, the newest deployment has not finished or has failed.
