@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { parse } from 'smol-toml'
 import {
   buildArtifacts,
@@ -7,6 +7,7 @@ import {
   buildShellScript,
   createCustomMcpEntry,
   defaultState,
+  detectBrowserLocale,
   statusLineItems,
   terminalTitleItems,
   validateStep,
@@ -373,5 +374,48 @@ describe('validateStep', () => {
     })
 
     expect(validateStep(3, state, 'en')).toContain('same config ID')
+  })
+})
+describe('detectBrowserLocale', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  function mockDisplayLanguage(locale: string) {
+    const resolvedOptions = Intl.DateTimeFormat.prototype.resolvedOptions
+    vi.spyOn(Intl.DateTimeFormat.prototype, 'resolvedOptions').mockImplementation(function (
+      this: Intl.DateTimeFormat,
+    ) {
+      return { ...resolvedOptions.call(this), locale }
+    })
+  }
+
+  it.each(['zh-CN', 'zh-Hans-CN', 'zh-TW'])('uses Chinese for the %s display language', (locale) => {
+    mockDisplayLanguage(locale)
+    vi.stubGlobal('navigator', { language: 'en-US', languages: ['en-US', 'zh-CN'] })
+
+    expect(detectBrowserLocale()).toBe('zh')
+  })
+
+  it('uses English for an English display language even when websites prefer Chinese', () => {
+    mockDisplayLanguage('en-US')
+    vi.stubGlobal('navigator', { language: 'zh-CN', languages: ['zh-CN', 'en-US'] })
+
+    expect(detectBrowserLocale()).toBe('en')
+  })
+
+  it('falls back to navigator.language when Intl is unavailable', () => {
+    vi.stubGlobal('Intl', undefined)
+    vi.stubGlobal('navigator', { language: 'zh-CN', languages: ['zh-CN'] })
+
+    expect(detectBrowserLocale()).toBe('zh')
+  })
+
+  it('uses English when no browser language is available', () => {
+    vi.stubGlobal('Intl', undefined)
+    vi.stubGlobal('navigator', undefined)
+
+    expect(detectBrowserLocale()).toBe('en')
   })
 })

@@ -145,8 +145,8 @@ const copy = {
       },
       {
         id: 'mcp',
-        title: 'MCP 模板',
-        description: '选择热门 MCP 模板，并按需添加多个可折叠的自定义 MCP。',
+        title: 'MCP 与扩展',
+        description: '选择 MCP 模板、添加自定义 MCP，并可选配置 TUI 终端标题与状态栏。',
       },
       {
         id: 'review',
@@ -296,8 +296,8 @@ const copy = {
       },
       {
         id: 'mcp',
-        title: 'MCP Templates',
-        description: 'Pick common MCP templates and add multiple collapsible custom MCP entries if needed.',
+        title: 'MCP And Extensions',
+        description: 'Pick MCP templates, add custom MCP entries, and optionally customize the TUI title and status line.',
       },
       {
         id: 'review',
@@ -533,12 +533,17 @@ export function detectBrowserOs(): TargetOs | null {
   return null
 }
 
-export function detectBrowserLocale(): Locale {
-  if (typeof navigator === 'undefined') {
-    return 'en'
+function getBrowserDisplayLanguage(): string | null {
+  // navigator.language follows website language preferences; Intl's default locale follows the browser UI.
+  if (typeof Intl !== 'undefined') {
+    return Intl.DateTimeFormat().resolvedOptions().locale
   }
 
-  return navigator.language.toLowerCase().startsWith('zh') ? 'zh' : 'en'
+  return typeof navigator === 'undefined' ? null : navigator.language
+}
+
+export function detectBrowserLocale(): Locale {
+  return getBrowserDisplayLanguage()?.toLowerCase().startsWith('zh') ? 'zh' : 'en'
 }
 
 export function getRecommendedThemeName(): string {
